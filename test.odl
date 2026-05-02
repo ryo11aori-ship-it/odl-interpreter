@@ -1,5 +1,16 @@
-META_RADIUS: 8
+META_RADIUS: 4
+
+# Center Clock
 R0,0: C
+
+# Green moving around Purple
 R1,2: GU
 R2,2: P
-R3,4: P
+
+# Erase test (Brown deletes Red)
+R2,6: R
+R3,8: Br
+
+# Copy test (Orange copies Blue)
+R2,14: B
+R3,20: O

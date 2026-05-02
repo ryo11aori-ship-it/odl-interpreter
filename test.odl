@@ -6,10 +6,11 @@ R0,0: C
 # 2. Pick up Red data
 R1,2: R
 
-# 3. Purple Wire routing Right
+# 3. Purple Wire routing Right, directly into the Yellow Gate
 R2,2: P
 R3,4: P
 R4,6: P
+R5,6: P
 
 # 4. Yellow Logic Gate (NOT Operation: Red -> Blue)
 R5,8: Y

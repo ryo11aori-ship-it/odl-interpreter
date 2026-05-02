@@ -51,17 +51,19 @@ return res
 }
 
 func GetDir(state string) (float64, float64) {
-if state == "GU" {
+if len(state) == 2 {
+if state[1] == 'U' {
 return 0, 1
 }
-if state == "GD" {
+if state[1] == 'D' {
 return 0, -1
 }
-if state == "GL" {
+if state[1] == 'L' {
 return -1, 0
 }
-if state == "GR" {
+if state[1] == 'R' {
 return 1, 0
+}
 }
 return 0, 0
 }
@@ -104,7 +106,8 @@ found = true
 if !found {
 return s
 }
-dirs := []string{"GU", "GD", "GL", "GR"}
+base := string(s[0])
+dirs := []string{base + "U", base + "D", base + "L", base + "R"}
 dxs := []float64{0, 0, -1, 1}
 dys := []float64{1, -1, 0, 0}
 md := -999.0
@@ -123,41 +126,90 @@ func Resolve(states []string) string {
 if len(states) == 0 {
 return ""
 }
-if len(states) == 1 {
-return states[0]
-}
 c := make(map[string]int)
+var dir string
+hasR, hasB, hasY, hasP := false, false, false, false
 for _, s := range states {
 c[s]++
+if s == "R" || (len(s) == 2 && s[0] == 'R') {
+hasR = true
 }
-if c["R"] > 0 && c["B"] > 0 && c["Y"] > 0 {
+if s == "B" || (len(s) == 2 && s[0] == 'B') {
+hasB = true
+}
+if s == "Y" {
+hasY = true
+}
+if s == "P" {
+hasP = true
+}
+if len(s) == 2 && (s[0] == 'G' || s[0] == 'R' || s[0] == 'B') {
+dir = string(s[1])
+}
+}
+if hasP {
+return "P"
+}
+if hasR && hasB && hasY {
+if dir != "" {
+return "R" + dir
+}
 return "R"
 }
-if c["R"] > 0 && c["B"] > 0 && c["Y"] == 0 {
+if hasR && hasB && !hasY {
 return "Y"
 }
-if c["R"] > 0 && c["Y"] > 0 {
+if hasR && hasY {
+if dir != "" {
+return "B" + dir
+}
 return "B"
 }
-if c["B"] > 0 && c["Y"] > 0 {
+if hasB && hasY {
+if dir != "" {
+return "R" + dir
+}
 return "R"
 }
-if c["R"] > 0 {
-return "R"
+if hasY {
+return "Y"
 }
-if c["B"] > 0 {
-return "B"
-}
-prio := map[string]int{"P": 90, "Y": 80, "O": 70, "GU": 60, "GD": 60, "GL": 60, "GR": 60, "R": 50, "B": 50, "C": 40, "K": 30, "Br": 20, "W": 10}
-b := ""
-mp := 0
 for _, s := range states {
-if prio[s] > mp {
-mp = prio[s]
-b = s
+if s == "O" {
+return "O"
 }
 }
-return b
+if dir != "" {
+if hasR {
+return "R" + dir
+}
+if hasB {
+return "B" + dir
+}
+return "G" + dir
+}
+if hasR {
+return "R"
+}
+if hasB {
+return "B"
+}
+for _, s := range states {
+if s == "C" {
+return "C"
+}
+}
+for _, s := range states {
+if s == "K" {
+return "K"
+}
+}
+for _, s := range states {
+if s == "Br" {
+return "Br"
+}
+}
+return states[0]
 }
 
 func Draw(grid map[Cell]string, maxR, step int) {
@@ -205,8 +257,18 @@ img.Set(px+dx, py+dy, color.RGBA{40, 40, 40, 255})
 s := grid[c]
 if s != "" {
 col, ok := colors[s]
-if !ok && strings.HasPrefix(s, "G") {
+if !ok {
+if len(s) == 2 {
+if s[0] == 'G' {
 col = color.RGBA{50, 255, 50, 255}
+}
+if s[0] == 'R' {
+col = color.RGBA{255, 50, 50, 255}
+}
+if s[0] == 'B' {
+col = color.RGBA{50, 150, 255, 255}
+}
+}
 }
 for dy := -5; dy <= 5; dy++ {
 for dx := -5; dx <= 5; dx++ {
@@ -215,12 +277,20 @@ img.Set(px+dx, py+dy, col)
 }
 }
 }
-if strings.HasPrefix(s, "G") {
+if len(s) == 2 && (s[0] == 'G' || s[0] == 'R' || s[0] == 'B') {
 ddx, ddy := 0, 0
-if s == "GU" { ddy = -3 }
-if s == "GD" { ddy = 3 }
-if s == "GL" { ddx = -3 }
-if s == "GR" { ddx = 3 }
+if s[1] == 'U' {
+ddy = -3
+}
+if s[1] == 'D' {
+ddy = 3
+}
+if s[1] == 'L' {
+ddx = -3
+}
+if s[1] == 'R' {
+ddx = 3
+}
 for dy := -1; dy <= 1; dy++ {
 for dx := -1; dx <= 1; dx++ {
 img.Set(px+ddx+dx, py+ddy+dy, color.RGBA{255, 255, 255, 255})
@@ -236,7 +306,7 @@ f.Close()
 }
 
 func main() {
-fmt.Println("ODL v2.0 Phase 9: Clock Pulse Generation")
+fmt.Println("ODL v2.0 Phase 10: Data Transport & Logic Gates")
 if len(os.Args) < 2 {
 return
 }
@@ -278,7 +348,7 @@ maxDot := -999.0
 cx, cy := c.XY()
 for _, n := range Neighbors(c, maxR+1) {
 targetState := grid[n]
-if targetState != "" && targetState != s {
+if targetState == "P" || targetState == "K" || targetState == "C" {
 continue
 }
 nx, ny := n.XY()
@@ -305,7 +375,7 @@ nextBuf[c] = append(nextBuf[c], s)
 }
 for c, states := range nextBuf {
 for i, s := range states {
-if strings.HasPrefix(s, "G") {
+if len(s) == 2 && (s[0] == 'G' || s[0] == 'R' || s[0] == 'B') {
 states[i] = Field(c, nextBuf, s, maxR+1)
 }
 }

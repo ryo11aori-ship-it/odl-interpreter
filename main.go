@@ -48,10 +48,10 @@ for _,s:=range states{if prio[s]>mp{mp=prio[s];b=s}}
 return b
 }
 func main(){
-fmt.Println("ODL v2.0 Phase 5: Collision & Gate Synthesis")
+fmt.Println("ODL v2.0 Phase 5.1: Collision Fix")
 if len(os.Args)<2{return}
 data,_:=os.ReadFile(os.Args[1])
-grid:=make(map[Cell]string)
+grid:=make(map[Cell][]string)
 maxR:=0
 for _,line:=range strings.Split(string(data),"\n"){
 line=strings.TrimSpace(line)
@@ -63,14 +63,17 @@ c:=strings.Split(p[0][1:],",")
 r,_:=strconv.Atoi(c[0])
 i,_:=strconv.Atoi(c[1])
 if r>maxR{maxR=r}
-grid[Cell{r,i}]=strings.TrimSpace(p[1])
+grid[Cell{r,i}]=append(grid[Cell{r,i}],strings.TrimSpace(p[1]))
 }
 }
 nextBuf:=make(map[Cell][]string)
-for c,s:=range grid{
+for c,states:=range grid{
+for _,s:=range states{
 if s!="GU"&&s!="GD"&&s!="GL"&&s!="GR"{nextBuf[c]=append(nextBuf[c],s)}
 }
-for c,s:=range grid{
+}
+for c,states:=range grid{
+for _,s:=range states{
 dx,dy:=GetDir(s)
 if dx!=0||dy!=0{
 var best Cell
@@ -85,6 +88,7 @@ dot:=vx*dx+vy*dy
 if dot>maxDot{maxDot=dot;best=n}
 }
 if maxDot>-999.0{nextBuf[best]=append(nextBuf[best],s)}else{nextBuf[c]=append(nextBuf[c],s)}
+}
 }
 }
 finalGrid:=make(map[Cell]string)

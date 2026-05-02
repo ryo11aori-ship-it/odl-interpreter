@@ -1,10 +1,13 @@
-META_RADIUS: 7
+META_RADIUS: 6
 
-# Clock at center
+# Center Clock
 R0,0: C
 
-# Purple Wire guiding the pulses Up and then Right
-R2,4: P
-R3,6: P
-R4,8: P
-R5,10: P
+# Static Red Data (Waiting to be picked up)
+R1,2: R
+
+# Purple Wire guiding the picked-up Red Data to the Right
+R2,2: P
+R3,4: P
+R4,6: P
+R5,8: P

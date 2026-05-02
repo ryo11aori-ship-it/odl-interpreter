@@ -1,13 +1,10 @@
-META_RADIUS: 6
+META_RADIUS: 7
 
-# Starting Green carrier
-R1,2: GU
+# Clock at center
+R0,0: C
 
-# Purple Wire guiding it in an arc
-R2,2: P
-R3,4: P
-R4,6: P
-R5,8: P
-
-# Black Wall blocking the path at the end
-R6,10: K
+# Purple Wire guiding the pulses Up and then Right
+R2,4: P
+R3,6: P
+R4,8: P
+R5,10: P

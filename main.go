@@ -58,18 +58,29 @@ return b
 }
 func Draw(grid map[Cell]string,maxR,step int){
 size:=(maxR+2)*60;half:=float64(size)/2.0;img:=image.NewRGBA(image.Rect(0,0,size,size))
-for y:=0;y<size;y++{for x:=0;x<size;x++{img.Set(x,y,color.RGBA{20,20,20,255})}}
-colors:=map[string]color.RGBA{"R":{255,50,50,255},"B":{50,150,255,255},"Y":{255,255,50,255},"P":{200,50,255,255},"C":{50,255,255,255},"W":{255,255,255,255}}
-for c,s:=range grid{
-if s==""{continue}
+for y:=0;y<size;y++{for x:=0;x<size;x++{img.Set(x,y,color.RGBA{25,25,30,255})}}
+colors:=map[string]color.RGBA{"R":{255,50,50,255},"B":{50,150,255,255},"Y":{255,255,50,255},"P":{200,50,255,255},"O":{255,150,50,255},"Br":{139,69,19,255},"C":{50,255,255,255},"W":{255,255,255,255}}
+for r:=0;r<=maxR;r++{
+maxI:=8*r;if r==0{maxI=1}
+for i:=0;i<maxI;i++{
+c:=Cell{r,i};cx,cy:=c.XY();px:=int(cx*30.0+half);py:=int(-cy*30.0+half)
+for dy:=-8;dy<=8;dy++{for dx:=-8;dx<=8;dx++{
+dist:=dx*dx+dy*dy
+if dist<=64{
+if dist>49{img.Set(px+dx,py+dy,color.RGBA{60,60,60,255})}else{img.Set(px+dx,py+dy,color.RGBA{40,40,40,255})}
+}
+}}
+s:=grid[c]
+if s!=""{
 col,ok:=colors[s];if !ok&&strings.HasPrefix(s,"G"){col=color.RGBA{50,255,50,255}}
-cx,cy:=c.XY();px:=int(cx*30.0+half);py:=int(-cy*30.0+half)
-for dy:=-6;dy<=6;dy++{for dx:=-6;dx<=6;dx++{if dx*dx+dy*dy<=36{img.Set(px+dx,py+dy,col)}}}
+for dy:=-5;dy<=5;dy++{for dx:=-5;dx<=5;dx++{if dx*dx+dy*dy<=25{img.Set(px+dx,py+dy,col)}}}
+}
+}
 }
 f,_:=os.Create(fmt.Sprintf("step_%d.png",step));png.Encode(f,img);f.Close()
 }
 func main(){
-fmt.Println("ODL v2.0 Phase 6: Engine & PNG Output")
+fmt.Println("ODL v2.0 Phase 7: UI & Advanced Logic")
 if len(os.Args)<2{return}
 data,_:=os.ReadFile(os.Args[1])
 grid:=make(map[Cell]string);maxR:=0;buf:=make(map[Cell][]string)
@@ -102,6 +113,27 @@ for i,s:=range states{if strings.HasPrefix(s,"G"){states[i]=Field(c,nextBuf,s,ma
 }
 grid=make(map[Cell]string)
 for c,states:=range nextBuf{grid[c]=Resolve(states)}
+for c,s:=range grid{
+if s=="Br"{
+for _,n:=range Neighbors(c,maxR+1){
+ns:=grid[n]
+if ns=="R"||ns=="B"||strings.HasPrefixns,"G"=""}
+}
+}
+}
+for c,s:=range grid{
+if s=="O"{
+for _,n:=range Neighbors(c,maxR+1){
+ns:=grid[n]
+if ns=="R"||ns=="B"{
+for _,nn:=range Neighbors(c,maxR+1){
+if grid[nn]==""{grid[nn]=ns;break}
+}
+break
+}
+}
+}
+}
 Draw(grid,maxR,step)
 fmt.Printf("Step %d completed.\n",step)
 }

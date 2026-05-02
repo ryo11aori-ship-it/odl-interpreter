@@ -1,13 +1,15 @@
 META_RADIUS: 6
 
-# Center Clock
+# 1. Clock at center
 R0,0: C
 
-# Static Red Data (Waiting to be picked up)
+# 2. Pick up Red data
 R1,2: R
 
-# Purple Wire guiding the picked-up Red Data to the Right
+# 3. Purple Wire routing Right
 R2,2: P
 R3,4: P
 R4,6: P
-R5,8: P
+
+# 4. Yellow Logic Gate (NOT Operation: Red -> Blue)
+R5,8: Y

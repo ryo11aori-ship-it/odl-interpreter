@@ -68,7 +68,7 @@ return 1, 0
 return 0, 0
 }
 
-func Field(c Cell, buf map[Cell][]string, s string, maxR int) string {
+func Field(c Cell, infra map[Cell]string, s string, maxR int) string {
 cx, cy := c.XY()
 dx, dy := GetDir(s)
 px, py := 0.0, 0.0
@@ -83,13 +83,7 @@ maxI = 1
 }
 for i := 0; i < maxI; i++ {
 nc := Cell{r, i}
-hasP := false
-for _, st := range buf[nc] {
-if st == "P" {
-hasP = true
-}
-}
-if hasP {
+if infra[nc] == "P" {
 nx, ny := nc.XY()
 vx, vy := nx-cx, ny-cy
 if vx*dx+vy*dy >= -0.1 {
@@ -312,14 +306,14 @@ f.Close()
 }
 
 func main() {
-fmt.Println("ODL v2.0 Phase 10.6: Fixed Pickup & Added Text Logs")
+fmt.Println("ODL v2.0 Phase 11: Permanent Infra & Perfect Carry")
 if len(os.Args) < 2 {
 return
 }
 data, _ := os.ReadFile(os.Args[1])
 grid := make(map[Cell]string)
+infra := make(map[Cell]string)
 maxR := 0
-buf := make(map[Cell][]string)
 for _, line := range strings.Split(string(data), "\n") {
 line = strings.TrimSpace(line)
 if strings.HasPrefix(line, "META_RADIUS:") {
@@ -337,28 +331,30 @@ i, _ := strconv.Atoi(c[1])
 if r > maxR {
 maxR = r
 }
-buf[Cell{r, i}] = append(buf[Cell{r, i}], strings.TrimSpace(p[1]))
+s := strings.TrimSpace(p[1])
+grid[Cell{r, i}] = s
+if s == "P" || s == "C" || s == "K" || s == "R" || s == "B" || s == "Y" || s == "O" || s == "Br" {
+infra[Cell{r, i}] = s
 }
 }
-for c, states := range buf {
-grid[c] = Resolve(states)
 }
 Draw(grid, maxR, 0)
-fmt.Println("LOG: Step 0 State:")
+fmt.Println("LOG: Step 00 State:")
 for c, s := range grid {
 fmt.Printf("LOG: (R%d, I%d): %s\n", c.R, c.I, s)
 }
 for step := 1; step <= 20; step++ {
 nextBuf := make(map[Cell][]string)
 for c, s := range grid {
+if len(s) == 2 {
 dx, dy := GetDir(s)
 if dx != 0 || dy != 0 {
 var best Cell
 maxDot := -999.0
 cx, cy := c.XY()
 for _, n := range Neighbors(c, maxR+1) {
-targetState := grid[n]
-if targetState == "P" || targetState == "K" || targetState == "C" || targetState == "O" || targetState == "Br" || targetState == "Y" {
+targetInfra := infra[n]
+if targetInfra == "P" || targetInfra == "K" || targetInfra == "C" || targetInfra == "O" || targetInfra == "Br" || targetInfra == "Y" {
 continue
 }
 nx, ny := n.XY()
@@ -379,14 +375,16 @@ nextBuf[best] = append(nextBuf[best], s)
 } else {
 nextBuf[c] = append(nextBuf[c], s)
 }
-} else {
-nextBuf[c] = append(nextBuf[c], s)
 }
+}
+}
+for c, s := range infra {
+nextBuf[c] = append(nextBuf[c], s)
 }
 for c, states := range nextBuf {
 for i, s := range states {
 if len(s) == 2 {
-states[i] = Field(c, nextBuf, s, maxR+1)
+states[i] = Field(c, infra, s, maxR+1)
 }
 }
 }
@@ -397,8 +395,10 @@ grid[c] = Resolve(states)
 for c, s := range grid {
 if s == "Br" {
 for _, n := range Neighbors(c, maxR+1) {
-ns := grid[n]
-if ns == "R" || ns == "B" || len(ns) == 2 {
+if infra[n] == "R" || infra[n] == "B" {
+delete(infra, n)
+}
+if grid[n] == "R" || grid[n] == "B" || len(grid[n]) == 2 {
 grid[n] = ""
 }
 }
@@ -407,10 +407,11 @@ grid[n] = ""
 for c, s := range grid {
 if s == "O" {
 for _, n := range Neighbors(c, maxR+1) {
-ns := grid[n]
+ns := infra[n]
 if ns == "R" || ns == "B" {
 for _, nn := range Neighbors(c, maxR+1) {
-if grid[nn] == "" {
+if grid[nn] == "" && infra[nn] == "" {
+infra[nn] = ns
 grid[nn] = ns
 break
 }
@@ -421,13 +422,13 @@ break
 }
 }
 if step%4 == 0 {
-for c, s := range grid {
+for c, s := range infra {
 if s == "C" {
 var bestN Cell
 maxY := -999.0
 found := false
 for _, n := range Neighbors(c, maxR+1) {
-if grid[n] == "" || grid[n] == "R" || grid[n] == "B" {
+if infra[n] == "" || infra[n] == "R" || infra[n] == "B" {
 _, ny := n.XY()
 if ny > maxY {
 maxY = ny
@@ -437,9 +438,9 @@ found = true
 }
 }
 if found {
-if grid[bestN] == "R" {
+if infra[bestN] == "R" {
 grid[bestN] = "RU"
-} else if grid[bestN] == "B" {
+} else if infra[bestN] == "B" {
 grid[bestN] = "BU"
 } else {
 grid[bestN] = "GU"

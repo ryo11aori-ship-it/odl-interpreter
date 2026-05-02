@@ -32,7 +32,7 @@ if state=="GR"{return 1,0}
 return 0,0
 }
 func main(){
-fmt.Println("ODL v2.0 Phase 2: Neighbors & Vector Movement")
+fmt.Println("ODL v2.0 Phase 3: Double Buffering Engine")
 if len(os.Args)<2{return}
 data,_:=os.ReadFile(os.Args[1])
 grid:=make(map[Cell]string)
@@ -50,10 +50,14 @@ if r>maxR{maxR=r}
 grid[Cell{r,i}]=strings.TrimSpace(p[1])
 }
 }
+nextGrid:=make(map[Cell]string)
+for c,s:=range grid{
+if s!="GU"&&s!="GD"&&s!="GL"&&s!="GR"{nextGrid[c]=s}
+}
 for c,s:=range grid{
 dx,dy:=GetDir(s)
 if dx!=0||dy!=0{
-var bestCell Cell
+var best Cell
 var maxDot float64=-999.0
 cx,cy:=c.XY()
 for _,n:=range Neighbors(c,maxR+1){
@@ -62,9 +66,15 @@ vx,vy:=nx-cx,ny-cy
 norm:=math.Sqrt(vx*vx+vy*vy)
 if norm>0{vx/=norm;vy/=norm}
 dot:=vx*dx+vy*dy
-if dot>maxDot{maxDot=dot;bestCell=n}
+if dot>maxDot{maxDot=dot;best=n}
 }
-fmt.Printf("Cell R%d,I%d (%s) wants to move to R%d,I%d\n",c.R,c.I,s,bestCell.R,bestCell.I)
+if nextGrid[best]==""{
+nextGrid[best]=s
+}else{
+nextGrid[c]=s
 }
 }
+}
+fmt.Println("--- Step 1 Grid State ---")
+for k,v:=range nextGrid{fmt.Printf("Cell(R%d, I%d) : %s\n",k.R,k.I,v)}
 }

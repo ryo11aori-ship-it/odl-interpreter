@@ -31,8 +31,42 @@ if state=="GL"{return -1,0}
 if state=="GR"{return 1,0}
 return 0,0
 }
+func Field(c Cell,grid map[Cell]string,s string,maxR int)string{
+cx,cy:=c.XY()
+dx,dy:=GetDir(s)
+px,py:=0.0,0.0
+found:=false
+rMin,rMax:=c.R-2,c.R+2
+if rMin<0{rMin=0}
+if rMax>maxR{rMax=maxR}
+for r:=rMin;r<=rMax;r++{
+maxI:=8*r;if r==0{maxI=1}
+for i:=0;i<maxI;i++{
+nc:=Cell{r,i}
+if grid[nc]=="P"{
+nx,ny:=nc.XY()
+vx,vy:=nx-cx,ny-cy
+if vx*dx+vy*dy>=-0.1{
+d:=math.Sqrt(vx*vx+vy*vy)
+if d>0&&d<2.5{px+=vx/d;py+=vy/d;found=true}
+}
+}
+}
+}
+if !found{return s}
+dirs:=[]string{"GU","GD","GL","GR"}
+dxs:=[]float64{0,0,-1,1}
+dys:=[]float64{1,-1,0,0}
+md:=-999.0
+best:=s
+for j:=0;j<4;j++{
+dot:=px*dxs[j]+py*dys[j]
+if dot>md{md=dot;best=dirs[j]}
+}
+return best
+}
 func main(){
-fmt.Println("ODL v2.0 Phase 3: Double Buffering Engine")
+fmt.Println("ODL v2.0 Phase 4: Purple Directional Field")
 if len(os.Args)<2{return}
 data,_:=os.ReadFile(os.Args[1])
 grid:=make(map[Cell]string)
@@ -68,11 +102,14 @@ if norm>0{vx/=norm;vy/=norm}
 dot:=vx*dx+vy*dy
 if dot>maxDot{maxDot=dot;best=n}
 }
-if nextGrid[best]==""{
-nextGrid[best]=s
-}else{
-nextGrid[c]=s
+if nextGrid[best]==""{nextGrid[best]=s}else{nextGrid[c]=s}
 }
+}
+for c,s:=range nextGrid{
+if s=="GU"||s=="GD"||s=="GL"||s=="GR"{
+newDir:=Field(c,nextGrid,s,maxR+1)
+if newDir!=s{fmt.Printf("-> Purple Field changed %s at R%d,I%d to %s\n",s,c.R,c.I,newDir)}
+nextGrid[c]=newDir
 }
 }
 fmt.Println("--- Step 1 Grid State ---")

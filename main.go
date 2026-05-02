@@ -126,15 +126,14 @@ func Resolve(states []string) string {
 if len(states) == 0 {
 return ""
 }
-c := make(map[string]int)
 var dir string
 hasR, hasB, hasY, hasP := false, false, false, false
+hasCarrier := false
 for _, s := range states {
-c[s]++
-if s == "R" || (len(s) == 2 && s[0] == 'R') {
+if s == "R" {
 hasR = true
 }
-if s == "B" || (len(s) == 2 && s[0] == 'B') {
+if s == "B" {
 hasB = true
 }
 if s == "Y" {
@@ -143,15 +142,22 @@ hasY = true
 if s == "P" {
 hasP = true
 }
-if len(s) == 2 && (s[0] == 'G' || s[0] == 'R' || s[0] == 'B') {
+if len(s) == 2 {
+hasCarrier = true
 dir = string(s[1])
+if s[0] == 'R' {
+hasR = true
+}
+if s[0] == 'B' {
+hasB = true
+}
 }
 }
 if hasP {
 return "P"
 }
 if hasR && hasB && hasY {
-if dir != "" {
+if hasCarrier {
 return "R" + dir
 }
 return "R"
@@ -160,13 +166,13 @@ if hasR && hasB && !hasY {
 return "Y"
 }
 if hasR && hasY {
-if dir != "" {
+if hasCarrier {
 return "B" + dir
 }
 return "B"
 }
 if hasB && hasY {
-if dir != "" {
+if hasCarrier {
 return "R" + dir
 }
 return "R"
@@ -179,7 +185,7 @@ if s == "O" {
 return "O"
 }
 }
-if dir != "" {
+if hasCarrier {
 if hasR {
 return "R" + dir
 }
@@ -306,7 +312,7 @@ f.Close()
 }
 
 func main() {
-fmt.Println("ODL v2.0 Phase 10: Data Transport & Logic Gates")
+fmt.Println("ODL v2.0 Phase 10.1: Fixed Data Pickup Logic")
 if len(os.Args) < 2 {
 return
 }
@@ -370,12 +376,53 @@ nextBuf[best] = append(nextBuf[best], s)
 nextBuf[c] = append(nextBuf[c], s)
 }
 } else {
+foundIncoming := false
+for nC, nS := range grid {
+nDx, nDy := GetDir(nS)
+if nDx != 0 || nDy != 0 {
+ncx, ncy := nC.XY()
+for _, nn := range Neighbors(nC, maxR+1) {
+if nn == c {
+nnx, nny := nn.XY()
+vx, vy := nnx-ncx, nny-ncy
+norm := math.Sqrt(vx*vx + vy*vy)
+if norm > 0 {
+vx /= norm
+vy /= norm
+}
+dot := vx*nDx + vy*nDy
+isBest := true
+maxD := dot
+for _, otherN := range Neighbors(nC, maxR+1) {
+if otherN != c {
+ox, oy := otherN.XY()
+ovx, ovy := ox-ncx, oy-ncy
+onorm := math.Sqrt(ovx*ovx + ovy*ovy)
+if onorm > 0 {
+ovx /= onorm
+ovy /= onorm
+}
+odot := ovx*nDx + ovy*nDy
+if odot > maxD {
+isBest = false
+}
+}
+}
+if isBest {
+foundIncoming = true
+}
+}
+}
+}
+}
+if !foundIncoming {
 nextBuf[c] = append(nextBuf[c], s)
+}
 }
 }
 for c, states := range nextBuf {
 for i, s := range states {
-if len(s) == 2 && (s[0] == 'G' || s[0] == 'R' || s[0] == 'B') {
+if len(s) == 2 {
 states[i] = Field(c, nextBuf, s, maxR+1)
 }
 }
@@ -388,7 +435,7 @@ for c, s := range grid {
 if s == "Br" {
 for _, n := range Neighbors(c, maxR+1) {
 ns := grid[n]
-if ns == "R" || ns == "B" || strings.HasPrefix(ns, "G") {
+if ns == "R" || ns == "B" || len(ns) == 2 {
 grid[n] = ""
 }
 }

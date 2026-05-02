@@ -312,7 +312,7 @@ f.Close()
 }
 
 func main() {
-fmt.Println("ODL v2.0 Phase 10.1: Fixed Data Pickup Logic")
+fmt.Println("ODL v2.0 Phase 10.2: Fixed Carrier Pathing")
 if len(os.Args) < 2 {
 return
 }
@@ -354,7 +354,7 @@ maxDot := -999.0
 cx, cy := c.XY()
 for _, n := range Neighbors(c, maxR+1) {
 targetState := grid[n]
-if targetState == "P" || targetState == "K" || targetState == "C" {
+if targetState == "P" || targetState == "K" || targetState == "C" || targetState == "O" || targetState == "Br" || targetState == "Y" {
 continue
 }
 nx, ny := n.XY()
@@ -464,7 +464,7 @@ var bestN Cell
 maxY := -999.0
 found := false
 for _, n := range Neighbors(c, maxR+1) {
-if grid[n] == "" {
+if grid[n] == "" || grid[n] == "R" || grid[n] == "B" {
 _, ny := n.XY()
 if ny > maxY {
 maxY = ny

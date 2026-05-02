@@ -1,14 +1,9 @@
 package main
 
 import (
-"fmt"
-"image"
-"image/color"
-"image/png"
 "math"
-"os"
-"strconv"
-"strings"
+"fyne.io/fyne/v2/app"
+"fyne.io/fyne/v2/widget"
 )
 
 type Cell struct {
@@ -121,7 +116,7 @@ if len(states) == 0 {
 return ""
 }
 var dir string
-hasR, hasB, hasY, hasP := false, false, false, false
+hasR, hasB, hasY, hasP := false
 hasCarrier := false
 for _, s := range states {
 if s == "R" {
@@ -226,250 +221,10 @@ return "Br"
 return states[0]
 }
 
-func Draw(grid map[Cell]string, maxR, step int) {
-size := (maxR + 2) * 60
-half := float64(size) / 2.0
-img := image.NewRGBA(image.Rect(0, 0, size, size))
-for y := 0; y < size; y++ {
-for x := 0; x < size; x++ {
-img.Set(x, y, color.RGBA{25, 25, 30, 255})
-}
-}
-colors := map[string]color.RGBA{
-"R": {255, 50, 50, 255},
-"B": {50, 150, 255, 255},
-"Y": {255, 255, 50, 255},
-"P": {200, 50, 255, 255},
-"O": {255, 150, 50, 255},
-"Br": {139, 69, 19, 255},
-"C": {50, 255, 255, 255},
-"K": {20, 20, 20, 255},
-"W": {255, 255, 255, 255},
-"M": {255, 0, 255, 255},
-"L": {150, 255, 50, 255},
-"H": {150, 0, 255, 255},
-}
-for r := 0; r <= maxR; r++ {
-maxI := 8 * r
-if r == 0 {
-maxI = 1
-}
-for i := 0; i < maxI; i++ {
-c := Cell{r, i}
-cx, cy := c.XY()
-px := int(cx*30.0 + half)
-py := int(-cy*30.0 + half)
-for dy := -8; dy <= 8; dy++ {
-for dx := -8; dx <= 8; dx++ {
-dist := dx*dx + dy*dy
-if dist <= 64 {
-if dist > 49 {
-img.Set(px+dx, py+dy, color.RGBA{60, 60, 60, 255})
-} else {
-img.Set(px+dx, py+dy, color.RGBA{40, 40, 40, 255})
-}
-}
-}
-}
-s := grid[c]
-if s != "" {
-col, ok := colors[s]
-if !ok {
-if len(s) == 2 {
-if s[0] == 'G' {
-col = color.RGBA{50, 255, 50, 255}
-}
-if s[0] == 'R' {
-col = color.RGBA{255, 50, 50, 255}
-}
-if s[0] == 'B' {
-col = color.RGBA{50, 150, 255, 255}
-}
-}
-}
-for dy := -5; dy <= 5; dy++ {
-for dx := -5; dx <= 5; dx++ {
-if dx*dx+dy*dy <= 25 {
-img.Set(px+dx, py+dy, col)
-}
-}
-}
-if len(s) == 2 && (s[0] == 'G' || s[0] == 'R' || s[0] == 'B') {
-ddx, ddy := 0, 0
-if s[1] == 'U' {
-ddy = -3
-}
-if s[1] == 'D' {
-ddy = 3
-}
-if s[1] == 'L' {
-ddx = -3
-}
-if s[1] == 'R' {
-ddx = 3
-}
-for dy := -1; dy <= 1; dy++ {
-for dx := -1; dx <= 1; dx++ {
-img.Set(px+ddx+dx, py+ddy+dy, color.RGBA{255, 255, 255, 255})
-}
-}
-}
-}
-}
-}
-f, _ := os.Create(fmt.Sprintf("step_%02d.png", step))
-png.Encode(f, img)
-f.Close()
-}
-
 func main() {
-fmt.Println("ODL v2.1 Phase 13: System I/O & Halt Port")
-if len(os.Args) < 2 {
-return
-}
-data, _ := os.ReadFile(os.Args[1])
-grid := make(map[Cell]string)
-infra := make(map[Cell]string)
-maxR := 0
-for _, line := range strings.Split(string(data), "\n") {
-line = strings.TrimSpace(line)
-if strings.HasPrefix(line, "META_RADIUS:") {
-maxR, _ = strconv.Atoi(strings.Split(line, ":")[1])
-continue
-}
-if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "META") {
-continue
-}
-if strings.HasPrefix(line, "R") {
-p := strings.Split(line, ":")
-c := strings.Split(p[0][1:], ",")
-r, _ := strconv.Atoi(c[0])
-i, _ := strconv.Atoi(c[1])
-if r > maxR {
-maxR = r
-}
-s := strings.TrimSpace(p[1])
-grid[Cell{r, i}] = s
-if s == "P" || s == "C" || s == "K" || s == "R" || s == "B" || s == "Y" || s == "O" || s == "Br" || s == "M" || s == "L" || s == "H" {
-infra[Cell{r, i}] = s
-}
-}
-}
-Draw(grid, maxR, 0)
-outBuf := ""
-for step := 1; step <= 20; step++ {
-nextBuf := make(map[Cell][]string)
-for c, s := range grid {
-if len(s) == 2 {
-dx, dy := GetDir(s)
-if dx != 0 || dy != 0 {
-var best Cell
-maxDot := -999.0
-cx, cy := c.XY()
-for _, n := range Neighbors(c, maxR+1) {
-targetInfra := infra[n]
-if targetInfra == "P" || targetInfra == "K" || targetInfra == "C" || targetInfra == "O" || targetInfra == "Br" || targetInfra == "Y" {
-continue
-}
-nx, ny := n.XY()
-vx, vy := nx-cx, ny-cy
-norm := math.Sqrt(vx*vx + vy*vy)
-if norm > 0 {
-vx /= norm
-vy /= norm
-}
-dot := vx*dx + vy*dy
-if dot > maxDot {
-maxDot = dot
-best = n
-}
-}
-if maxDot > -999.0 {
-nextBuf[best] = append(nextBuf[best], s)
-} else {
-nextBuf[c] = append(nextBuf[c], s)
-}
-}
-}
-}
-for c, s := range infra {
-nextBuf[c] = append(nextBuf[c], s)
-}
-for c, states := range nextBuf {
-for i, s := range states {
-if len(s) == 2 {
-states[i] = Field(c, infra, s, maxR+1)
-}
-}
-}
-halt := false
-for c, states := range nextBuf {
-infraType := infra[c]
-if infraType == "M" {
-for _, s := range states {
-if len(s) == 2 {
-if s[0] == 'R' {
-outBuf += "1"
-} else if s[0] == 'B' {
-outBuf += "0"
-} else if s[0] == 'G' {
-if outBuf != "" {
-val, _ := strconv.ParseInt(outBuf, 2, 64)
-fmt.Printf("\n==================================\n")
-fmt.Printf(">>> SYSTEM OUT: %c (Binary: %s) <<<\n", val, outBuf)
-fmt.Printf("==================================\n\n")
-outBuf = ""
-}
-}
-}
-}
-nextBuf[c] = []string{"M"}
-} else if infraType == "H" {
-for _, s := range states {
-if len(s) == 2 {
-halt = true
-fmt.Printf("\n[!] SYSTEM HALT: Program terminated at H port.\n")
-}
-}
-nextBuf[c] = []string{"H"}
-}
-}
-grid = make(map[Cell]string)
-for c, states := range nextBuf {
-grid[c] = Resolve(states)
-}
-if step%4 == 0 {
-for c, s := range infra {
-if s == "C" {
-var bestN Cell
-maxY := -999.0
-found := false
-for _, n := range Neighbors(c, maxR+1) {
-if infra[n] == "" || infra[n] == "R" || infra[n] == "B" || infra[n] == "Y" {
-_, ny := n.XY()
-if ny > maxY {
-maxY = ny
-bestN = n
-found = true
-}
-}
-}
-if found {
-if infra[bestN] == "R" {
-grid[bestN] = "RU"
-} else if infra[bestN] == "B" {
-grid[bestN] = "BU"
-} else {
-grid[bestN] = "GU"
-}
-}
-}
-}
-}
-Draw(grid, maxR, step)
-fmt.Printf("Step %02d completed.\n", step)
-if halt {
-break
-}
-}
+myApp := app.New()
+myWindow := myApp.NewWindow("ODL Studio - Initialization Test")
+helloText := widget.NewLabel("Success!\nODL Studio EXE Build is working correctly on your PC.\nPlease tell the AI to proceed to the IDE code.")
+myWindow.SetContent(helloText)
+myWindow.ShowAndRun()
 }

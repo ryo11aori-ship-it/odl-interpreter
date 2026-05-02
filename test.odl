@@ -1,3 +1,13 @@
 META_RADIUS: 8
-R1,2: GU
-R2,2: P
+# Force an AND gate synthesis (R + B + Y -> R)
+R0,0: R
+R0,0: B
+R0,0: Y
+
+# Force an OR synthesis without Yellow (R + B -> Y)
+R1,0: R
+R1,0: B
+
+# Force a pure priority collision (Purple vs Clock)
+R2,0: P
+R2,0: C

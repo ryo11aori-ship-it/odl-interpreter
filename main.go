@@ -236,7 +236,7 @@ f.Close()
 }
 
 func main() {
-fmt.Println("ODL v2.0 Phase 8: Visual Directions & Wall Blocking")
+fmt.Println("ODL v2.0 Phase 9: Clock Pulse Generation")
 if len(os.Args) < 2 {
 return
 }
@@ -268,7 +268,7 @@ for c, states := range buf {
 grid[c] = Resolve(states)
 }
 Draw(grid, maxR, 0)
-for step := 1; step <= 10; step++ {
+for step := 1; step <= 20; step++ {
 nextBuf := make(map[Cell][]string)
 for c, s := range grid {
 dx, dy := GetDir(s)
@@ -336,6 +336,28 @@ break
 }
 }
 break
+}
+}
+}
+}
+if step%4 == 0 {
+for c, s := range grid {
+if s == "C" {
+var bestN Cell
+maxY := -999.0
+found := false
+for _, n := range Neighbors(c, maxR+1) {
+if grid[n] == "" {
+_, ny := n.XY()
+if ny > maxY {
+maxY = ny
+bestN = n
+found = true
+}
+}
+}
+if found {
+grid[bestN] = "GU"
 }
 }
 }

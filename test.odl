@@ -1,4 +1,4 @@
-META_RADIUS: 6
+META_RADIUS: 7
 
 # 1. Clock at center
 R0,0: C
@@ -6,11 +6,10 @@ R0,0: C
 # 2. Pick up Red data
 R1,2: R
 
-# 3. Purple Wire routing Right, directly into the Yellow Gate
+# 3. Purple Wire guiding the carrier
 R2,2: P
 R3,4: P
 R4,6: P
-R5,6: P
 
-# 4. Yellow Logic Gate (NOT Operation: Red -> Blue)
-R5,8: Y
+# 4. Yellow Logic Gate (Placed exactly on the carrier's path!)
+R5,7: Y

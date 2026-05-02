@@ -312,7 +312,7 @@ f.Close()
 }
 
 func main() {
-fmt.Println("ODL v2.0 Phase 10.2: Fixed Carrier Pathing")
+fmt.Println("ODL v2.0 Phase 10.3: Perfect Data Pickup")
 if len(os.Args) < 2 {
 return
 }
@@ -354,7 +354,7 @@ maxDot := -999.0
 cx, cy := c.XY()
 for _, n := range Neighbors(c, maxR+1) {
 targetState := grid[n]
-if targetState == "P" || targetState == "K" || targetState == "C" || targetState == "O" || targetState == "Br" || targetState == "Y" {
+if targetState == "P" || targetState == "K" || targetState == "C" || targetState == "O" || targetState == "Br" {
 continue
 }
 nx, ny := n.XY()
@@ -376,48 +376,7 @@ nextBuf[best] = append(nextBuf[best], s)
 nextBuf[c] = append(nextBuf[c], s)
 }
 } else {
-foundIncoming := false
-for nC, nS := range grid {
-nDx, nDy := GetDir(nS)
-if nDx != 0 || nDy != 0 {
-ncx, ncy := nC.XY()
-for _, nn := range Neighbors(nC, maxR+1) {
-if nn == c {
-nnx, nny := nn.XY()
-vx, vy := nnx-ncx, nny-ncy
-norm := math.Sqrt(vx*vx + vy*vy)
-if norm > 0 {
-vx /= norm
-vy /= norm
-}
-dot := vx*nDx + vy*nDy
-isBest := true
-maxD := dot
-for _, otherN := range Neighbors(nC, maxR+1) {
-if otherN != c {
-ox, oy := otherN.XY()
-ovx, ovy := ox-ncx, oy-ncy
-onorm := math.Sqrt(ovx*ovx + ovy*ovy)
-if onorm > 0 {
-ovx /= onorm
-ovy /= onorm
-}
-odot := ovx*nDx + ovy*nDy
-if odot > maxD {
-isBest = false
-}
-}
-}
-if isBest {
-foundIncoming = true
-}
-}
-}
-}
-}
-if !foundIncoming {
 nextBuf[c] = append(nextBuf[c], s)
-}
 }
 }
 for c, states := range nextBuf {

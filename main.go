@@ -312,7 +312,7 @@ f.Close()
 }
 
 func main() {
-fmt.Println("ODL v2.0 Phase 10.4: PERFECT Data Pickup and Carry")
+fmt.Println("ODL v2.0 Phase 10.5: TRUE Data Pickup (No Vanishing)")
 if len(os.Args) < 2 {
 return
 }

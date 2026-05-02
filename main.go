@@ -177,6 +177,7 @@ colors := map[string]color.RGBA{
 "O": {255, 150, 50, 255},
 "Br": {139, 69, 19, 255},
 "C": {50, 255, 255, 255},
+"K": {20, 20, 20, 255},
 "W": {255, 255, 255, 255},
 }
 for r := 0; r <= maxR; r++ {
@@ -214,16 +215,28 @@ img.Set(px+dx, py+dy, col)
 }
 }
 }
+if strings.HasPrefix(s, "G") {
+ddx, ddy := 0, 0
+if s == "GU" { ddy = -3 }
+if s == "GD" { ddy = 3 }
+if s == "GL" { ddx = -3 }
+if s == "GR" { ddx = 3 }
+for dy := -1; dy <= 1; dy++ {
+for dx := -1; dx <= 1; dx++ {
+img.Set(px+ddx+dx, py+ddy+dy, color.RGBA{255, 255, 255, 255})
 }
 }
 }
-f, _ := os.Create(fmt.Sprintf("step_%d.png", step))
+}
+}
+}
+f, _ := os.Create(fmt.Sprintf("step_%02d.png", step))
 png.Encode(f, img)
 f.Close()
 }
 
 func main() {
-fmt.Println("ODL v2.0 Phase 7: UI & Advanced Logic Fix")
+fmt.Println("ODL v2.0 Phase 8: Visual Directions & Wall Blocking")
 if len(os.Args) < 2 {
 return
 }
@@ -255,7 +268,7 @@ for c, states := range buf {
 grid[c] = Resolve(states)
 }
 Draw(grid, maxR, 0)
-for step := 1; step <= 3; step++ {
+for step := 1; step <= 10; step++ {
 nextBuf := make(map[Cell][]string)
 for c, s := range grid {
 dx, dy := GetDir(s)
@@ -264,6 +277,10 @@ var best Cell
 maxDot := -999.0
 cx, cy := c.XY()
 for _, n := range Neighbors(c, maxR+1) {
+targetState := grid[n]
+if targetState != "" && targetState != s {
+continue
+}
 nx, ny := n.XY()
 vx, vy := nx-cx, ny-cy
 norm := math.Sqrt(vx*vx + vy*vy)
@@ -324,6 +341,6 @@ break
 }
 }
 Draw(grid, maxR, step)
-fmt.Printf("Step %d completed.\n", step)
+fmt.Printf("Step %02d completed.\n", step)
 }
 }

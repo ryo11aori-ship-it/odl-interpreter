@@ -312,7 +312,7 @@ f.Close()
 }
 
 func main() {
-fmt.Println("ODL v2.0 Phase 10.5: TRUE Data Pickup (No Vanishing)")
+fmt.Println("ODL v2.0 Phase 10.6: Fixed Pickup & Added Text Logs")
 if len(os.Args) < 2 {
 return
 }
@@ -344,6 +344,10 @@ for c, states := range buf {
 grid[c] = Resolve(states)
 }
 Draw(grid, maxR, 0)
+fmt.Println("LOG: Step 0 State:")
+for c, s := range grid {
+fmt.Printf("LOG: (R%d, I%d): %s\n", c.R, c.I, s)
+}
 for step := 1; step <= 20; step++ {
 nextBuf := make(map[Cell][]string)
 for c, s := range grid {
@@ -446,5 +450,9 @@ grid[bestN] = "GU"
 }
 Draw(grid, maxR, step)
 fmt.Printf("Step %02d completed.\n", step)
+fmt.Printf("LOG: Step %02d State:\n", step)
+for c, s := range grid {
+fmt.Printf("LOG: (R%d, I%d): %s\n", c.R, c.I, s)
+}
 }
 }

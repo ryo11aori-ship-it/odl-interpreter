@@ -1,15 +1,10 @@
-META_RADIUS: 7
+META_RADIUS: 5
 
-# 1. Clock at center
+# 1. 中心のクロック（上に発射）
 R0,0: C
 
-# 2. Pick up Red data
+# 2. 真上の赤データ（ここで拾い上げて赤キャリアになる）
 R1,2: R
 
-# 3. Purple Wire guiding the carrier
-R2,2: P
-R3,4: P
-R4,6: P
-
-# 4. Yellow Logic Gate (Placed exactly on the carrier's path!)
-R5,7: Y
+# 3. そのまま真上に直進し、半径3の真上で黄ゲート（NOT）に激突！
+R3,6: Y

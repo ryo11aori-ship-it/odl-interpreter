@@ -312,7 +312,7 @@ f.Close()
 }
 
 func main() {
-fmt.Println("ODL v2.0 Phase 10.3: Perfect Data Pickup")
+fmt.Println("ODL v2.0 Phase 10.4: PERFECT Data Pickup and Carry")
 if len(os.Args) < 2 {
 return
 }
@@ -354,7 +354,7 @@ maxDot := -999.0
 cx, cy := c.XY()
 for _, n := range Neighbors(c, maxR+1) {
 targetState := grid[n]
-if targetState == "P" || targetState == "K" || targetState == "C" || targetState == "O" || targetState == "Br" {
+if targetState == "P" || targetState == "K" || targetState == "C" || targetState == "O" || targetState == "Br" || targetState == "Y" {
 continue
 }
 nx, ny := n.XY()
@@ -433,7 +433,13 @@ found = true
 }
 }
 if found {
+if grid[bestN] == "R" {
+grid[bestN] = "RU"
+} else if grid[bestN] == "B" {
+grid[bestN] = "BU"
+} else {
 grid[bestN] = "GU"
+}
 }
 }
 }

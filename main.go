@@ -150,14 +150,14 @@ hasB = true
 if hasP {
 return "P"
 }
+if hasR && hasB && !hasY {
+return "Y"
+}
 if hasR && hasB && hasY {
 if hasCarrier {
 return "R" + dir
 }
 return "R"
-}
-if hasR && hasB && !hasY {
-return "Y"
 }
 if hasR && hasY {
 if hasCarrier {
@@ -170,6 +170,9 @@ if hasCarrier {
 return "R" + dir
 }
 return "R"
+}
+if hasY && hasCarrier {
+return "G" + dir
 }
 if hasY {
 return "Y"
@@ -306,7 +309,7 @@ f.Close()
 }
 
 func main() {
-fmt.Println("ODL v2.0 Phase 11: Permanent Infra & Perfect Carry")
+fmt.Println("ODL v2.0 Phase 12: Turing Complete Logic Gates")
 if len(os.Args) < 2 {
 return
 }
@@ -354,7 +357,7 @@ maxDot := -999.0
 cx, cy := c.XY()
 for _, n := range Neighbors(c, maxR+1) {
 targetInfra := infra[n]
-if targetInfra == "P" || targetInfra == "K" || targetInfra == "C" || targetInfra == "O" || targetInfra == "Br" || targetInfra == "Y" {
+if targetInfra == "P" || targetInfra == "K" || targetInfra == "C" || targetInfra == "O" || targetInfra == "Br" {
 continue
 }
 nx, ny := n.XY()
@@ -428,7 +431,7 @@ var bestN Cell
 maxY := -999.0
 found := false
 for _, n := range Neighbors(c, maxR+1) {
-if infra[n] == "" || infra[n] == "R" || infra[n] == "B" {
+if infra[n] == "" || infra[n] == "R" || infra[n] == "B" || infra[n] == "Y" {
 _, ny := n.XY()
 if ny > maxY {
 maxY = ny

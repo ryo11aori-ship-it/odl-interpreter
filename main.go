@@ -182,6 +182,17 @@ if s == "O" {
 return "O"
 }
 }
+for _, s := range states {
+if s == "M" {
+return "M"
+}
+if s == "L" {
+return "L"
+}
+if s == "H" {
+return "H"
+}
+}
 if hasCarrier {
 if hasR {
 return "R" + dir
@@ -234,6 +245,9 @@ colors := map[string]color.RGBA{
 "C": {50, 255, 255, 255},
 "K": {20, 20, 20, 255},
 "W": {255, 255, 255, 255},
+"M": {255, 0, 255, 255},
+"L": {150, 255, 50, 255},
+"H": {150, 0, 255, 255},
 }
 for r := 0; r <= maxR; r++ {
 maxI := 8 * r
@@ -309,7 +323,7 @@ f.Close()
 }
 
 func main() {
-fmt.Println("ODL v2.0 Phase 12: Turing Complete Logic Gates")
+fmt.Println("ODL v2.1 Phase 13: System I/O & Halt Port")
 if len(os.Args) < 2 {
 return
 }
@@ -336,16 +350,13 @@ maxR = r
 }
 s := strings.TrimSpace(p[1])
 grid[Cell{r, i}] = s
-if s == "P" || s == "C" || s == "K" || s == "R" || s == "B" || s == "Y" || s == "O" || s == "Br" {
+if s == "P" || s == "C" || s == "K" || s == "R" || s == "B" || s == "Y" || s == "O" || s == "Br" || s == "M" || s == "L" || s == "H" {
 infra[Cell{r, i}] = s
 }
 }
 }
 Draw(grid, maxR, 0)
-fmt.Println("LOG: Step 00 State:")
-for c, s := range grid {
-fmt.Printf("LOG: (R%d, I%d): %s\n", c.R, c.I, s)
-}
+outBuf := ""
 for step := 1; step <= 20; step++ {
 nextBuf := make(map[Cell][]string)
 for c, s := range grid {
@@ -357,7 +368,7 @@ maxDot := -999.0
 cx, cy := c.XY()
 for _, n := range Neighbors(c, maxR+1) {
 targetInfra := infra[n]
-if targetInfra == "P" || targetInfra == "K" || targetInfra == "C" || targetInfra == "O" || targetInfra == "Br" {
+if targetInfra == "P" || targetInfra == "K" || targetInfra == "C" || targetInfra == "O" || targetInfra == "Br" || targetInfra == "Y" {
 continue
 }
 nx, ny := n.XY()
@@ -391,38 +402,41 @@ states[i] = Field(c, infra, s, maxR+1)
 }
 }
 }
+halt := false
+for c, states := range nextBuf {
+infraType := infra[c]
+if infraType == "M" {
+for _, s := range states {
+if len(s) == 2 {
+if s[0] == 'R' {
+outBuf += "1"
+} else if s[0] == 'B' {
+outBuf += "0"
+} else if s[0] == 'G' {
+if outBuf != "" {
+val, _ := strconv.ParseInt(outBuf, 2, 64)
+fmt.Printf("\n==================================\n")
+fmt.Printf(">>> SYSTEM OUT: %c (Binary: %s) <<<\n", val, outBuf)
+fmt.Printf("==================================\n\n")
+outBuf = ""
+}
+}
+}
+}
+nextBuf[c] = []string{"M"}
+} else if infraType == "H" {
+for _, s := range states {
+if len(s) == 2 {
+halt = true
+fmt.Printf("\n[!] SYSTEM HALT: Program terminated at H port.\n")
+}
+}
+nextBuf[c] = []string{"H"}
+}
+}
 grid = make(map[Cell]string)
 for c, states := range nextBuf {
 grid[c] = Resolve(states)
-}
-for c, s := range grid {
-if s == "Br" {
-for _, n := range Neighbors(c, maxR+1) {
-if infra[n] == "R" || infra[n] == "B" {
-delete(infra, n)
-}
-if grid[n] == "R" || grid[n] == "B" || len(grid[n]) == 2 {
-grid[n] = ""
-}
-}
-}
-}
-for c, s := range grid {
-if s == "O" {
-for _, n := range Neighbors(c, maxR+1) {
-ns := infra[n]
-if ns == "R" || ns == "B" {
-for _, nn := range Neighbors(c, maxR+1) {
-if grid[nn] == "" && infra[nn] == "" {
-infra[nn] = ns
-grid[nn] = ns
-break
-}
-}
-break
-}
-}
-}
 }
 if step%4 == 0 {
 for c, s := range infra {
@@ -454,9 +468,8 @@ grid[bestN] = "GU"
 }
 Draw(grid, maxR, step)
 fmt.Printf("Step %02d completed.\n", step)
-fmt.Printf("LOG: Step %02d State:\n", step)
-for c, s := range grid {
-fmt.Printf("LOG: (R%d, I%d): %s\n", c.R, c.I, s)
+if halt {
+break
 }
 }
 }

@@ -23,20 +23,21 @@ return float64(c.R)*math.Cos(ang), float64(c.R)*math.Sin(ang)
 }
 var selectedColor = "R"
 var currentRadius = 6
+var isRunning = false
 type clickableRaster struct {
 widget.BaseWidget
-Raster *canvas.Raster
+raster *canvas.Raster
 onTap func(fyne.Position)
 }
 func (r *clickableRaster) CreateRenderer() fyne.WidgetRenderer {
-return widget.NewSimpleRenderer(r.Raster)
+return widget.NewSimpleRenderer(r.raster)
 }
 func (r *clickableRaster) Tapped(e *fyne.PointEvent) {
 if r.onTap != nil { r.onTap(e.Position) }
 }
 func newClickableRaster(draw func(w, h int) image.Image, tap func(fyne.Position)) *clickableRaster {
 r := &clickableRaster{
-Raster: canvas.NewRaster(draw),
+raster: canvas.NewRaster(draw),
 onTap: tap,
 }
 r.ExtendBaseWidget(r)
@@ -66,13 +67,43 @@ return grid, maxR
 }
 func main() {
 a := app.New()
-w := a.NewWindow("ODL Studio v3.0 - Visual Designer")
-w.Resize(fyne.NewSize(1200, 800))
+w := a.NewWindow("ODL Studio v3.1 - Visual IDE")
+w.Resize(fyne.NewSize(1400, 900))
 editor := widget.NewMultiLineEntry()
-editor.SetText("META_RADIUS: 6\nR1,0: R\nR3,0: B\nR2,4: Y")
+editor.SetText("META_RADIUS: 6\nR1,0: RU\nR3,6: M\nR5,0: H")
 logArea := widget.NewMultiLineEntry()
 logArea.Disable()
-paletteLabel := widget.NewLabel("Select Color:")
+logArea.SetText("=== ODL Console ===\nReady.")
+toolbar := container.NewHBox(
+widget.NewButton("New", func() {
+editor.SetText("META_RADIUS: 6\n")
+currentRadius = 6
+logArea.SetText("=== ODL Console ===\nNew project created.")
+}),
+widget.NewButton("Open", func() {
+logArea.SetText(logArea.Text + "\n[Open] Coming soon...")
+}),
+widget.NewButton("Save", func() {
+logArea.SetText(logArea.Text + "\n[Save] Coming soon...")
+}),
+widget.NewSeparator(),
+widget.NewButton("▶ Run", func() {
+isRunning = true
+logArea.SetText(logArea.Text + "\n[Run] Engine not wired yet.")
+}),
+widget.NewButton("Step", func() {
+logArea.SetText(logArea.Text + "\n[Step] Engine not wired yet.")
+}),
+widget.NewButton("Pause", func() {
+isRunning = false
+logArea.SetText(logArea.Text + "\n[Pause] Execution paused.")
+}),
+widget.NewButton("⏹ Reset", func() {
+isRunning = false
+logArea.SetText("=== ODL Console ===\nReset.")
+}),
+)
+paletteLabel := widget.NewLabel("Color:")
 colorsKeys := []string{"R", "B", "Y", "P", "G", "M", "L", "H", "C", "K", "W"}
 palette := container.NewHBox()
 for _, k := range colorsKeys {
@@ -162,10 +193,10 @@ editor.SetText(strings.Join(newLines, "\n"))
 }
 raster = newClickableRaster(drawFunc, tapFunc)
 editor.OnChanged = func(s string) { raster.Refresh() }
-topControls := container.NewVBox(container.NewHBox(radiusLabel, radiusSlider), container.NewHBox(paletteLabel, palette))
+topControls := container.NewVBox(toolbar, container.NewHBox(radiusLabel, radiusSlider), container.NewHBox(paletteLabel, palette))
 leftPanel := container.NewVSplit(editor, logArea)
 mainContent := container.NewHSplit(leftPanel, raster)
-mainContent.SetOffset(0.3)
+mainContent.SetOffset(0.35)
 w.SetContent(container.NewBorder(topControls, nil, nil, nil, mainContent))
 w.ShowAndRun()
 }

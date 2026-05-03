@@ -1,29 +1,9 @@
 package main
 import (
-"fmt"
-"os"
-"os/exec"
-"strings"
-)
-func main() {
-if len(os.Args) < 2 {
-fmt.Println("Usage: odlc <source.odl> [output.exe]")
-return
-}
-inFile := os.Args[1]
-outFile := strings.TrimSuffix(inFile, ".odl") + ".exe"
-if len(os.Args) >= 3 {
-outFile = os.Args[2]
-}
-data, err := os.ReadFile(inFile)
-if err != nil {
-fmt.Println("Error reading file:", err)
-return
-}
-sourceCode := `package main
-import (
+"bytes"
 "fmt"
 "math"
+"os"
 "strconv"
 "strings"
 )
@@ -235,8 +215,7 @@ return "Br"
 }
 return states[0]
 }
-func main() {
-data := ` + "`" + string(data) + "`" + `
+func runODL(data string) {
 grid := make(map[Cell]string)
 infra := make(map[Cell]string)
 maxR := 0
@@ -377,21 +356,45 @@ break
 }
 }
 }
-`
-tempFile := "odl_temp_build.go"
-err = os.WriteFile(tempFile, []byte(sourceCode), 0644)
+func main() {
+magic := []byte("!!!ODL_SOURCE_BOUNDARY!!!")
+exePath, err := os.Executable()
 if err != nil {
-fmt.Println("Temp File Error:", err)
+fmt.Println("Error locating executable:", err)
 return
 }
-defer os.Remove(tempFile)
-cmd := exec.Command("go", "build", "-o", outFile, tempFile)
-cmd.Stdout = os.Stdout
-cmd.Stderr = os.Stderr
-err = cmd.Run()
+exeData, err := os.ReadFile(exePath)
 if err != nil {
-fmt.Println("Compile Error:", err)
+fmt.Println("Error reading executable:", err)
 return
 }
-fmt.Println("Successfully compiled to ->", outFile)
+idx := bytes.LastIndex(exeData, magic)
+if idx != -1 {
+sourceData := string(exeData[idx+len(magic):])
+runODL(sourceData)
+return
+}
+if len(os.Args) < 2 {
+fmt.Println("ODL Packer Compiler")
+fmt.Println("Usage: odlc <source.odl> [output.exe]")
+return
+}
+inFile := os.Args[1]
+outFile := strings.TrimSuffix(inFile, ".odl")
+if len(os.Args) >= 3 {
+outFile = os.Args[2]
+}
+sourceData, err := os.ReadFile(inFile)
+if err != nil {
+fmt.Println("Error reading source file:", err)
+return
+}
+outData := append(exeData, magic...)
+outData = append(outData, sourceData...)
+err = os.WriteFile(outFile, outData, 0755)
+if err != nil {
+fmt.Println("Error writing file:", err)
+return
+}
+fmt.Println("Successfully packed to ->", outFile)
 }

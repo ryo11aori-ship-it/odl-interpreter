@@ -222,7 +222,10 @@ maxR := 0
 for _, line := range strings.Split(data, "\n") {
 line = strings.TrimSpace(line)
 if strings.HasPrefix(line, "META_RADIUS:") {
-maxR, _ = strconv.Atoi(strings.Split(line, ":")[1])
+parts := strings.Split(line, ":")
+if len(parts) >= 2 {
+maxR, _ = strconv.Atoi(strings.TrimSpace(parts[1]))
+}
 continue
 }
 if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "META") {
@@ -230,7 +233,13 @@ continue
 }
 if strings.HasPrefix(line, "R") {
 p := strings.Split(line, ":")
+if len(p) < 2 {
+continue
+}
 c := strings.Split(p[0][1:], ",")
+if len(c) < 2 {
+continue
+}
 r, _ := strconv.Atoi(c[0])
 i, _ := strconv.Atoi(c[1])
 if r > maxR {
@@ -357,7 +366,9 @@ break
 }
 }
 func main() {
-magic := []byte("!!!ODL_SOURCE_BOUNDARY!!!")
+part1 := []byte("!!!ODL_PACKER")
+part2 := []byte("_BOUNDARY!!!")
+magic := append(part1, part2...)
 exePath, err := os.Executable()
 if err != nil {
 fmt.Println("Error locating executable:", err)

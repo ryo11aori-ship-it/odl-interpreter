@@ -1,4 +1,4 @@
-name: ODL Universal Compiler Workflow
+name: ODL Packer Compiler Workflow
 on: [push]
 jobs:
   build:
@@ -8,21 +8,27 @@ jobs:
     - uses: actions/setup-go@v5
       with:
         go-version: '1.22'
-    
+        
     - name: Init Go Module
       run: go mod init odl || true
 
-    - name: Build the ODL Compiler (odlc)
+    - name: Build Linux Compiler (For CI Test)
       run: go build -o odlc compiler.go
 
-    - name: Compile ODL Source to EXE
+    - name: Compile ODL Source via Packer
+      run: ./odlc test.odl test_program
+
+    - name: Execute Packed Program (Proof of Concept)
+      run: ./test_program
+
+    - name: Build Windows Compiler (For Your PC)
       env:
         GOOS: windows
         GOARCH: amd64
-      run: ./odlc test.odl test_program.exe
+      run: go build -o odlc.exe compiler.go
 
-    - name: Upload EXE Artifact
+    - name: Upload Windows Compiler
       uses: actions/upload-artifact@v4
       with:
-        name: Compiled_ODL_Program
-        path: test_program.exe
+        name: ODL_Compiler_Win
+        path: odlc.exe

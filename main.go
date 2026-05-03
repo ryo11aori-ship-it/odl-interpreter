@@ -4,6 +4,7 @@ import (
 "fmt"
 "image"
 "image/color"
+"io"
 "math"
 "os"
 "strconv"
@@ -14,6 +15,8 @@ import (
 "fyne.io/fyne/v2/app"
 "fyne.io/fyne/v2/canvas"
 "fyne.io/fyne/v2/container"
+"fyne.io/fyne/v2/dialog"
+"fyne.io/fyne/v2/storage"
 "fyne.io/fyne/v2/widget"
 )
 type Cell struct {
@@ -266,6 +269,9 @@ selectedColor = "R"
 currentRadius = 6
 isRunning = false
 isUserTyping = true
+panX float64 = 0
+panY float64 = 0
+zoomLevel float64 = 1.0
 mu sync.Mutex
 engineGrid map[Cell]string
 engineInfra map[Cell]string
@@ -277,10 +283,19 @@ type clickableRaster struct {
 widget.BaseWidget
 raster *canvas.Raster
 onTap func(fyne.Position)
+onDrag func(*fyne.DragEvent)
+onScroll func(*fyne.ScrollEvent)
 }
 func (r *clickableRaster) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(r.raster) }
 func (r *clickableRaster) Tapped(e *fyne.PointEvent) {
 if r.onTap != nil { r.onTap(e.Position) }
+}
+func (r *clickableRaster) Dragged(e *fyne.DragEvent) {
+if r.onDrag != nil { r.onDrag(e) }
+}
+func (r *clickableRaster) DragEnd() {}
+func (r *clickableRaster) Scrolled(e *fyne.ScrollEvent) {
+if r.onScroll != nil { r.onScroll(e) }
 }
 func newClickableRaster(draw func(w, h int) image.Image, tap func(fyne.Position)) *clickableRaster {
 r := &clickableRaster{ raster: canvas.NewRaster(draw), onTap: tap }
@@ -434,10 +449,40 @@ isUserTyping = false
 editor.SetText("META_RADIUS: 6\n")
 isUserTyping = true
 parseSource(editor.Text)
-raster.Refresh()
+panX = 0
+panY = 0
+zoomLevel = 1.0
+if raster != nil { raster.Refresh() }
 logArea.SetText("=== ODL Console ===\nNew project created.")
 }),
-widget.NewButton("Open", func() { logArea.SetText(logArea.Text + "\n[Open] Coming soon...") }),
+widget.NewButton("Open", func() {
+fd := dialog.NewFileOpen(func(r fyne.URIReadCloser, err error) {
+if err != nil || r == nil { return }
+defer r.Close()
+data, _ := io.ReadAll(r)
+isUserTyping = false
+editor.SetText(string(data))
+isUserTyping = true
+parseSource(string(data))
+panX = 0
+panY = 0
+zoomLevel = 1.0
+if raster != nil { raster.Refresh() }
+logArea.SetText(logArea.Text + "\n[Open] Loaded file: " + r.URI().Name())
+}, w)
+fd.SetFilter(storage.NewExtensionFileFilter([]string{".odl", ".txt"}))
+fd.Show()
+}),
+widget.NewButton("Save", func() {
+fd := dialog.NewFileSave(func(wc fyne.URIWriteCloser, err error) {
+if err != nil || wc == nil { return }
+defer wc.Close()
+wc.Write([]byte(editor.Text))
+logArea.SetText(logArea.Text + "\n[Save] Saved file: " + wc.URI().Name())
+}, w)
+fd.SetFileName("circuit.odl")
+fd.Show()
+}),
 widget.NewButton("Export EXE", func() {
 exePath, err := os.Executable()
 if err != nil {
@@ -469,7 +514,6 @@ logArea.SetText(logArea.Text + "\n[Run] Engine started.")
 widget.NewButton("Step", func() {
 isRunning = false
 engineStep()
-raster.Refresh()
 logArea.SetText(logArea.Text + "\n[Step] Advanced 1 tick.")
 }),
 widget.NewButton("Pause", func() {
@@ -479,7 +523,10 @@ logArea.SetText(logArea.Text + "\n[Pause] Execution paused.")
 widget.NewButton("⏹ Reset", func() {
 isRunning = false
 parseSource(editor.Text)
-raster.Refresh()
+panX = 0
+panY = 0
+zoomLevel = 1.0
+if raster != nil { raster.Refresh() }
 logArea.SetText("=== ODL Console ===\nReset to initial state.")
 }),
 )
@@ -505,9 +552,10 @@ img := image.NewRGBA(image.Rect(0, 0, w, h))
 for y := 0; y < h; y++ {
 for x := 0; x < w; x++ { img.Set(x, y, color.RGBA{20, 20, 25, 255}) }
 }
-halfX, halfY := float64(w)/2.0, float64(h)/2.0
-scale := (float64(w) * 0.45) / float64(engineMaxR+1)
-if scale > 30 { scale = 30 }
+halfX, halfY := float64(w)/2.0+panX, float64(h)/2.0+panY
+baseScale := (float64(w) * 0.45) / float64(engineMaxR+1)
+if baseScale > 30 { baseScale = 30 }
+scale := baseScale * zoomLevel
 dotSize := int(scale * 0.4)
 if dotSize < 1 { dotSize = 1 }
 colorMap := map[string]color.RGBA{
@@ -523,15 +571,43 @@ for i := 0; i < maxI; i++ {
 c := Cell{r, i}
 cx, cy := c.XY()
 px, py := int(cx*scale+halfX), int(-cy*scale+halfY)
+if px < -50 || px > w+50 || py < -50 || py > h+50 { continue }
+s := engineGrid[c]
+if s == "" {
+pxVec, pyVec := 0.0, 0.0
+foundP := false
+for r2 := c.R - 2; r2 <= c.R+2; r2++ {
+if r2 < 0 || r2 > engineMaxR { continue }
+maxI2 := 8 * r2; if r2 == 0 { maxI2 = 1 }
+for i2 := 0; i2 < maxI2; i2++ {
+if engineInfra[Cell{r2, i2}] == "P" {
+nx, ny := Cell{r2, i2}.XY()
+vx, vy := nx-cx, ny-cy
+d := math.Sqrt(vx*vx + vy*vy)
+if d > 0 && d < 2.5 {
+pxVec += vx / d; pyVec += vy / d; foundP = true
+}
+}
+}
+}
 for dy := -dotSize; dy <= dotSize; dy++ {
 for dx := -dotSize; dx <= dotSize; dx++ {
-if dx*dx+dy*dy <= dotSize*dotSize {
-img.Set(px+dx, py+dy, color.RGBA{50, 50, 60, 255})
+if dx*dx+dy*dy <= dotSize*dotSize { img.Set(px+dx, py+dy, color.RGBA{50, 50, 60, 255}) }
+}
+}
+if foundP {
+vLen := math.Sqrt(pxVec*pxVec + pyVec*pyVec)
+if vLen > 0 {
+dxVis := int((pxVec / vLen) * float64(dotSize) * 1.5)
+dyVis := int(-(pyVec / vLen) * float64(dotSize) * 1.5)
+for dy := -1; dy <= 1; dy++ {
+for dx := -1; dx <= 1; dx++ {
+img.Set(px+dxVis+dx, py+dyVis+dy, color.RGBA{200, 50, 255, 180})
 }
 }
 }
-s := engineGrid[c]
-if s != "" {
+}
+} else {
 col := colorMap[string(s[0])]
 for dy := -dotSize; dy <= dotSize; dy++ {
 for dx := -dotSize; dx <= dotSize; dx++ {
@@ -546,9 +622,10 @@ return img
 tapFunc := func(pos fyne.Position) {
 mu.Lock()
 wSize := raster.Size()
-halfX, halfY := float64(wSize.Width)/2.0, float64(wSize.Height)/2.0
-scale := (float64(wSize.Width) * 0.45) / float64(engineMaxR+1)
-if scale > 30 { scale = 30 }
+halfX, halfY := float64(wSize.Width)/2.0+panX, float64(wSize.Height)/2.0+panY
+baseScale := (float64(wSize.Width) * 0.45) / float64(engineMaxR+1)
+if baseScale > 30 { baseScale = 30 }
+scale := baseScale * zoomLevel
 dx, dy := float64(pos.X)-halfX, halfY-float64(pos.Y)
 dist := math.Sqrt(dx*dx + dy*dy)
 r := int(math.Round(dist / scale))
@@ -573,22 +650,27 @@ for c, s := range engineGrid { newLines = append(newLines, fmt.Sprintf("R%d,%d: 
 mu.Unlock()
 isUserTyping = false
 editor.SetText(strings.Join(newLines, "\n"))
-raster.Refresh()
 isUserTyping = true
 }
 raster = newClickableRaster(drawFunc, tapFunc)
-editor.OnChanged = func(s string) {
-if isUserTyping && !isRunning {
-parseSource(s)
+raster.onDrag = func(e *fyne.DragEvent) {
+panX += float64(e.Dragged.DX)
+panY += float64(e.Dragged.DY)
 raster.Refresh()
 }
+raster.onScroll = func(e *fyne.ScrollEvent) {
+zoomLevel += float64(e.Scrolled.DY) * 0.1
+if zoomLevel < 0.1 { zoomLevel = 0.1 }
+if zoomLevel > 10.0 { zoomLevel = 10.0 }
+raster.Refresh()
+}
+editor.OnChanged = func(s string) {
+if isUserTyping && !isRunning { parseSource(s) }
 }
 go func() {
 for {
-if isRunning {
-engineStep()
+if isRunning { engineStep() }
 raster.Refresh()
-}
 time.Sleep(100 * time.Millisecond)
 }
 }()

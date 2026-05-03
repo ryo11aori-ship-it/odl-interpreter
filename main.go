@@ -10,7 +10,6 @@ import (
 "fyne.io/fyne/v2/app"
 "fyne.io/fyne/v2/canvas"
 "fyne.io/fyne/v2/container"
-"fyne.io/fyne/v2/driver/desktop"
 "fyne.io/fyne/v2/widget"
 )
 type Cell struct {
@@ -25,19 +24,21 @@ return float64(c.R)*math.Cos(ang), float64(c.R)*math.Sin(ang)
 var selectedColor = "R"
 var currentRadius = 6
 type clickableRaster struct {
-canvas.Raster
+widget.BaseWidget
+Raster *canvas.Raster
 onTap func(fyne.Position)
+}
+func (r *clickableRaster) CreateRenderer() fyne.WidgetRenderer {
+return widget.NewSimpleRenderer(r.Raster)
 }
 func (r *clickableRaster) Tapped(e *fyne.PointEvent) {
 if r.onTap != nil { r.onTap(e.Position) }
 }
-func (r *clickableRaster) TappedSecondary(e *fyne.PointEvent) {}
-func (r *clickableRaster) MouseIn(*desktop.MouseEvent) {}
-func (r *clickableRaster) MouseOut() {}
-func (r *clickableRaster) MouseMoved(*desktop.MouseEvent) {}
 func newClickableRaster(draw func(w, h int) image.Image, tap func(fyne.Position)) *clickableRaster {
-r := &clickableRaster{onTap: tap}
-r.Raster.Generator = draw
+r := &clickableRaster{
+Raster: canvas.NewRaster(draw),
+onTap: tap,
+}
 r.ExtendBaseWidget(r)
 return r
 }

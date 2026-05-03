@@ -180,6 +180,7 @@ infra[Cell{r, i}] = s
 }
 }
 outBuf := ""
+finalOutput := ""
 for step := 1; step <= 500; step++ {
 nextBuf := make(map[Cell][]string)
 for c, s := range grid {
@@ -224,7 +225,7 @@ if len(s) == 2 {
 if s[0] == 'R' { outBuf += "1" } else if s[0] == 'B' { outBuf += "0" } else if s[0] == 'G' {
 if outBuf != "" {
 val, _ := strconv.ParseInt(outBuf, 2, 64)
-fmt.Printf("SYSTEM OUTPUT: %c\n", val)
+finalOutput += string(rune(val))
 outBuf = ""
 }
 }
@@ -259,10 +260,18 @@ if infra[bestN] == "R" { grid[bestN] = "RU" } else if infra[bestN] == "B" { grid
 }
 }
 if halt {
-fmt.Println("PROGRAM HALTED.")
+finalOutput += "\n\n[PROGRAM HALTED.]"
 break
 }
 }
+a := app.New()
+w := a.NewWindow("ODL Program Output")
+w.Resize(fyne.NewSize(400, 250))
+lbl := widget.NewMultiLineEntry()
+lbl.SetText("=== SYSTEM OUTPUT ===\n\n" + finalOutput)
+lbl.Disable()
+w.SetContent(container.NewBorder(nil, widget.NewButton("Close", func() { w.Close() }), nil, nil, lbl))
+w.ShowAndRun()
 }
 var (
 selectedColor = "R"
@@ -335,9 +344,8 @@ stepCount = 0
 outBufUI = ""
 }
 func main() {
-part1 := []byte("!!!ODL_PACKER")
-part2 := []byte("_BOUNDARY!!!")
-magic := append(part1, part2...)
+magicStr := strings.Join([]string{"!!!ODL", "PACKER", "BOUNDARY!!!"}, "_")
+magic := []byte(magicStr)
 exePath, err := os.Executable()
 if err == nil {
 exeData, err := os.ReadFile(exePath)
@@ -494,6 +502,8 @@ if err != nil {
 logArea.SetText(logArea.Text + "\n[Export] Error reading executable.")
 return
 }
+magicStr := strings.Join([]string{"!!!ODL", "PACKER", "BOUNDARY!!!"}, "_")
+magic := []byte(magicStr)
 outData := append(exeData, magic...)
 outData = append(outData, []byte(editor.Text)...)
 err = os.WriteFile("exported_program.exe", outData, 0755)

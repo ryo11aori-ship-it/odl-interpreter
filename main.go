@@ -172,14 +172,17 @@ func runODL(data string) {
 grid := make(map[Cell]string)
 infra := make(map[Cell]string)
 maxR := 0
-for _, line := range strings.Split(data, "\n") {
-line = strings.TrimSpace(line)
+for _, rawLine := range strings.Split(data, "\n") {
+line := strings.TrimSpace(rawLine)
+if idx := strings.Index(line, "#"); idx != -1 {
+line = strings.TrimSpace(line[:idx])
+}
+if line == "" { continue }
 if strings.HasPrefix(line, "META_RADIUS:") {
 parts := strings.Split(line, ":")
 if len(parts) >= 2 { maxR, _ = strconv.Atoi(strings.TrimSpace(parts[1])) }
 continue
 }
-if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "META") { continue }
 if strings.HasPrefix(line, "R") {
 p := strings.Split(line, ":")
 if len(p) < 2 { continue }
@@ -199,7 +202,6 @@ outBuf := ""
 bufF := ""
 bufN := ""
 bufX := ""
-step := 1
 for {
 nextBuf := make(map[Cell][]string)
 for c, s := range grid {
@@ -211,7 +213,7 @@ maxDot := -999.0
 cx, cy := c.XY()
 for _, n := range Neighbors(c, maxR+1) {
 targetInfra := infra[n]
-if targetInfra == "P" || targetInfra == "K" || targetInfra == "C" || targetInfra == "O" || targetInfra == "Br" || targetInfra == "Y" { continue }
+if targetInfra == "P" || targetInfra == "K" || targetInfra == "C" || targetInfra == "O" || targetInfra == "Br" { continue }
 nx, ny := n.XY()
 vx, vy := nx-cx, ny-cy
 norm := math.Sqrt(vx*vx + vy*vy)
@@ -325,7 +327,6 @@ if halt {
 fmt.Println("PROGRAM HALTED.")
 break
 }
-step++
 }
 }
 type PCellData struct {
@@ -380,8 +381,12 @@ defer mu.Unlock()
 engineGrid = make(map[Cell]string)
 engineInfra = make(map[Cell]string)
 engineMaxR = 6
-for _, line := range strings.Split(source, "\n") {
-line = strings.TrimSpace(line)
+for _, rawLine := range strings.Split(source, "\n") {
+line := strings.TrimSpace(rawLine)
+if idx := strings.Index(line, "#"); idx != -1 {
+line = strings.TrimSpace(line[:idx])
+}
+if line == "" { continue }
 if strings.HasPrefix(line, "META_RADIUS:") {
 p := strings.Split(line, ":")
 if len(p) >= 2 { engineMaxR, _ = strconv.Atoi(strings.TrimSpace(p[1])) }
@@ -446,7 +451,7 @@ maxDot := -999.0
 cx, cy := c.XY()
 for _, n := range Neighbors(c, engineMaxR+1) {
 targetInfra := engineInfra[n]
-if targetInfra == "P" || targetInfra == "K" || targetInfra == "C" || targetInfra == "O" || targetInfra == "Br" || targetInfra == "Y" { continue }
+if targetInfra == "P" || targetInfra == "K" || targetInfra == "C" || targetInfra == "O" || targetInfra == "Br" { continue }
 nx, ny := n.XY()
 vx, vy := nx-cx, ny-cy
 norm := math.Sqrt(vx*vx + vy*vy)

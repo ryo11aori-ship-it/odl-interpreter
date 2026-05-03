@@ -7,9 +7,11 @@ import (
 "io"
 "math"
 "os"
+"runtime"
 "strconv"
 "strings"
 "sync"
+"syscall"
 "time"
 "fyne.io/fyne/v2"
 "fyne.io/fyne/v2/app"
@@ -152,7 +154,32 @@ if s == "Br" { return "Br" }
 }
 return states[0]
 }
+func enableConsole() bool {
+if runtime.GOOS == "windows" {
+modkernel32 := syscall.NewLazyDLL("kernel32.dll")
+procAttachConsole := modkernel32.NewProc("AttachConsole")
+procAllocConsole := modkernel32.NewProc("AllocConsole")
+isAlloc := false
+r1, _, _ := procAttachConsole.Call(uintptr(0xFFFFFFFF))
+if r1 == 0 {
+procAllocConsole.Call()
+isAlloc = true
+}
+out, err := os.OpenFile("CONOUT$", os.O_RDWR, 0644)
+if err == nil {
+os.Stdout = out
+os.Stderr = out
+}
+in, err := os.OpenFile("CONIN$", os.O_RDWR, 0644)
+if err == nil {
+os.Stdin = in
+}
+return isAlloc
+}
+return false
+}
 func runODL(data string) {
+isAlloc := enableConsole()
 grid := make(map[Cell]string)
 infra := make(map[Cell]string)
 maxR := 0
@@ -180,7 +207,6 @@ infra[Cell{r, i}] = s
 }
 }
 outBuf := ""
-finalOutput := ""
 for step := 1; step <= 500; step++ {
 nextBuf := make(map[Cell][]string)
 for c, s := range grid {
@@ -225,7 +251,7 @@ if len(s) == 2 {
 if s[0] == 'R' { outBuf += "1" } else if s[0] == 'B' { outBuf += "0" } else if s[0] == 'G' {
 if outBuf != "" {
 val, _ := strconv.ParseInt(outBuf, 2, 64)
-finalOutput += string(rune(val))
+fmt.Printf("SYSTEM OUTPUT: %c\n", val)
 outBuf = ""
 }
 }
@@ -260,18 +286,14 @@ if infra[bestN] == "R" { grid[bestN] = "RU" } else if infra[bestN] == "B" { grid
 }
 }
 if halt {
-finalOutput += "\n\n[PROGRAM HALTED.]"
+fmt.Println("PROGRAM HALTED.")
 break
 }
 }
-a := app.New()
-w := a.NewWindow("ODL Program Output")
-w.Resize(fyne.NewSize(400, 250))
-lbl := widget.NewMultiLineEntry()
-lbl.SetText("=== SYSTEM OUTPUT ===\n\n" + finalOutput)
-lbl.Disable()
-w.SetContent(container.NewBorder(nil, widget.NewButton("Close", func() { w.Close() }), nil, nil, lbl))
-w.ShowAndRun()
+if isAlloc {
+fmt.Println("\nPress Enter to exit...")
+fmt.Scanln()
+}
 }
 var (
 selectedColor = "R"

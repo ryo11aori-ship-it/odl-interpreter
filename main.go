@@ -199,6 +199,7 @@ outBuf := ""
 bufF := ""
 bufN := ""
 bufX := ""
+step := 1
 for {
 nextBuf := make(map[Cell][]string)
 for c, s := range grid {
@@ -210,7 +211,7 @@ maxDot := -999.0
 cx, cy := c.XY()
 for _, n := range Neighbors(c, maxR+1) {
 targetInfra := infra[n]
-if targetInfra == "P" || targetInfra == "K" || targetInfra == "C" || targetInfra == "O" || targetInfra == "Br" { continue }
+if targetInfra == "P" || targetInfra == "K" || targetInfra == "C" || targetInfra == "O" || targetInfra == "Br" || targetInfra == "Y" { continue }
 nx, ny := n.XY()
 vx, vy := nx-cx, ny-cy
 norm := math.Sqrt(vx*vx + vy*vy)
@@ -324,6 +325,7 @@ if halt {
 fmt.Println("PROGRAM HALTED.")
 break
 }
+step++
 }
 }
 type PCellData struct {
@@ -444,7 +446,7 @@ maxDot := -999.0
 cx, cy := c.XY()
 for _, n := range Neighbors(c, engineMaxR+1) {
 targetInfra := engineInfra[n]
-if targetInfra == "P" || targetInfra == "K" || targetInfra == "C" || targetInfra == "O" || targetInfra == "Br" { continue }
+if targetInfra == "P" || targetInfra == "K" || targetInfra == "C" || targetInfra == "O" || targetInfra == "Br" || targetInfra == "Y" { continue }
 nx, ny := n.XY()
 vx, vy := nx-cx, ny-cy
 norm := math.Sqrt(vx*vx + vy*vy)

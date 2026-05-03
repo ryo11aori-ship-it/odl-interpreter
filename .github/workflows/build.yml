@@ -1,4 +1,4 @@
-name: ODL Packer Compiler Workflow
+name: Build ODL Studio IDE
 on: [push]
 jobs:
   build:
@@ -8,27 +8,25 @@ jobs:
     - uses: actions/setup-go@v5
       with:
         go-version: '1.22'
-        
-    - name: Init Go Module
+    - name: Install Compiler
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-mingw-w64
+    - name: Init Module
       run: go mod init odl || true
-
-    - name: Build Linux Compiler (For CI Test)
-      run: go build -o odlc compiler.go
-
-    - name: Compile ODL Source via Packer
-      run: ./odlc test.odl test_program
-
-    - name: Execute Packed Program (Proof of Concept)
-      run: ./test_program
-
-    - name: Build Windows Compiler (For Your PC)
+    - name: Install Fyne UI
+      run: |
+        go get fyne.io/fyne/v2
+        go mod tidy
+    - name: Build Windows IDE
       env:
+        CGO_ENABLED: 1
+        CC: x86_64-w64-mingw32-gcc
         GOOS: windows
         GOARCH: amd64
-      run: go build -o odlc.exe compiler.go
-
-    - name: Upload Windows Compiler
+      run: go build -ldflags="-H windowsgui" -o ODL_Studio.exe main.go
+    - name: Upload IDE App
       uses: actions/upload-artifact@v4
       with:
-        name: ODL_Compiler_Win
-        path: odlc.exe
+        name: ODL_Studio_Win
+        path: ODL_Studio.exe

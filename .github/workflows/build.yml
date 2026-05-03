@@ -13,7 +13,7 @@ jobs:
       run: go mod init odl || true
 
     - name: Build the ODL Compiler (odlc)
-      run: go build -o odlc main.go
+      run: go build -o odlc compiler.go
 
     - name: Compile ODL Source to EXE
       env:

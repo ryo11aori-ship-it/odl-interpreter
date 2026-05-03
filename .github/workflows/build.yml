@@ -9,6 +9,9 @@ jobs:
       with:
         go-version: '1.22'
     
+    - name: Init Go Module
+      run: go mod init odl || true
+
     - name: Build the ODL Compiler (odlc)
       run: go build -o odlc compiler.go
 

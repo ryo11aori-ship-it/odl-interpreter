@@ -7,7 +7,9 @@ import (
 "image/color"
 "io"
 "math"
+"net/http"
 "os"
+"os/exec"
 "strconv"
 "strings"
 "sync"
@@ -134,6 +136,9 @@ for _, s := range states {
 if s == "M" { return "M" }
 if s == "L" { return "L" }
 if s == "H" { return "H" }
+if s == "F" { return "F" }
+if s == "N" { return "N" }
+if s == "X" { return "X" }
 }
 if hasCarrier {
 if hasR { return "R" + dir }
@@ -152,6 +157,16 @@ for _, s := range states {
 if s == "Br" { return "Br" }
 }
 return states[0]
+}
+func binToStr(bin string) string {
+res := ""
+for i := 0; i < len(bin); i += 8 {
+end := i + 8
+if end > len(bin) { end = len(bin) }
+val, _ := strconv.ParseInt(bin[i:end], 2, 64)
+res += string(rune(val))
+}
+return res
 }
 func runODL(data string) {
 grid := make(map[Cell]string)
@@ -175,12 +190,15 @@ i, _ := strconv.Atoi(c[1])
 if r > maxR { maxR = r }
 s := strings.TrimSpace(p[1])
 grid[Cell{r, i}] = s
-if s == "P" || s == "C" || s == "K" || s == "R" || s == "B" || s == "Y" || s == "O" || s == "Br" || s == "M" || s == "L" || s == "H" {
+if s == "P" || s == "C" || s == "K" || s == "R" || s == "B" || s == "Y" || s == "O" || s == "Br" || s == "M" || s == "L" || s == "H" || s == "F" || s == "N" || s == "X" {
 infra[Cell{r, i}] = s
 }
 }
 }
 outBuf := ""
+bufF := ""
+bufN := ""
+bufX := ""
 for step := 1; step <= 500; step++ {
 nextBuf := make(map[Cell][]string)
 for c, s := range grid {
@@ -232,6 +250,49 @@ outBuf = ""
 }
 }
 nextBuf[c] = []string{"M"}
+} else if infraType == "F" {
+for _, s := range states {
+if len(s) == 2 {
+if s[0] == 'R' { bufF += "1" } else if s[0] == 'B' { bufF += "0" } else if s[0] == 'G' {
+if bufF != "" {
+str := binToStr(bufF)
+fmt.Printf("SYSTEM FILE WRITE: %s\n", str)
+f, _ := os.OpenFile("odl_output.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+if f != nil { f.WriteString(str + "\n"); f.Close() }
+bufF = ""
+}
+}
+}
+}
+nextBuf[c] = []string{"F"}
+} else if infraType == "N" {
+for _, s := range states {
+if len(s) == 2 {
+if s[0] == 'R' { bufN += "1" } else if s[0] == 'B' { bufN += "0" } else if s[0] == 'G' {
+if bufN != "" {
+str := binToStr(bufN)
+fmt.Printf("SYSTEM NETWORK GET: %s\n", str)
+go http.Get(str)
+bufN = ""
+}
+}
+}
+}
+nextBuf[c] = []string{"N"}
+} else if infraType == "X" {
+for _, s := range states {
+if len(s) == 2 {
+if s[0] == 'R' { bufX += "1" } else if s[0] == 'B' { bufX += "0" } else if s[0] == 'G' {
+if bufX != "" {
+str := binToStr(bufX)
+fmt.Printf("SYSTEM EXECUTE: %s\n", str)
+exec.Command("cmd", "/c", str).Start()
+bufX = ""
+}
+}
+}
+}
+nextBuf[c] = []string{"X"}
 } else if infraType == "H" {
 for _, s := range states {
 if len(s) == 2 { halt = true }
@@ -279,6 +340,9 @@ engineInfra map[Cell]string
 engineMaxR int
 stepCount int
 outBufUI string
+bufFUI string
+bufNUI string
+bufXUI string
 )
 type clickableRaster struct {
 widget.BaseWidget
@@ -326,7 +390,7 @@ i, _ := strconv.Atoi(c[1])
 if r > engineMaxR { engineMaxR = r }
 s := strings.TrimSpace(p[1])
 engineGrid[Cell{r, i}] = s
-if s == "P" || s == "C" || s == "K" || s == "R" || s == "B" || s == "Y" || s == "O" || s == "Br" || s == "M" || s == "L" || s == "H" {
+if s == "P" || s == "C" || s == "K" || s == "R" || s == "B" || s == "Y" || s == "O" || s == "Br" || s == "M" || s == "L" || s == "H" || s == "F" || s == "N" || s == "X" {
 engineInfra[Cell{r, i}] = s
 }
 }
@@ -334,6 +398,9 @@ engineInfra[Cell{r, i}] = s
 currentRadius = engineMaxR
 stepCount = 0
 outBufUI = ""
+bufFUI = ""
+bufNUI = ""
+bufXUI = ""
 }
 func main() {
 magicStr := strings.Join([]string{"!!!ODL", "PACKER", "BOUNDARY!!!"}, "_")
@@ -410,6 +477,49 @@ outBufUI = ""
 }
 }
 nextBuf[c] = []string{"M"}
+} else if infraType == "F" {
+for _, s := range states {
+if len(s) == 2 {
+if s[0] == 'R' { bufFUI += "1" } else if s[0] == 'B' { bufFUI += "0" } else if s[0] == 'G' {
+if bufFUI != "" {
+str := binToStr(bufFUI)
+logArea.SetText(logArea.Text + fmt.Sprintf("\n[SYSTEM FILE] Wrote: %s", str))
+f, _ := os.OpenFile("odl_output.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+if f != nil { f.WriteString(str + "\n"); f.Close() }
+bufFUI = ""
+}
+}
+}
+}
+nextBuf[c] = []string{"F"}
+} else if infraType == "N" {
+for _, s := range states {
+if len(s) == 2 {
+if s[0] == 'R' { bufNUI += "1" } else if s[0] == 'B' { bufNUI += "0" } else if s[0] == 'G' {
+if bufNUI != "" {
+str := binToStr(bufNUI)
+logArea.SetText(logArea.Text + fmt.Sprintf("\n[SYSTEM NET] GET: %s", str))
+go http.Get(str)
+bufNUI = ""
+}
+}
+}
+}
+nextBuf[c] = []string{"N"}
+} else if infraType == "X" {
+for _, s := range states {
+if len(s) == 2 {
+if s[0] == 'R' { bufXUI += "1" } else if s[0] == 'B' { bufXUI += "0" } else if s[0] == 'G' {
+if bufXUI != "" {
+str := binToStr(bufXUI)
+logArea.SetText(logArea.Text + fmt.Sprintf("\n[SYSTEM EXEC] %s", str))
+exec.Command("cmd", "/c", str).Start()
+bufXUI = ""
+}
+}
+}
+}
+nextBuf[c] = []string{"X"}
 } else if infraType == "H" {
 for _, s := range states {
 if len(s) == 2 { halt = true }
@@ -540,7 +650,7 @@ logArea.SetText("=== ODL Console ===\nReset to initial state.")
 }),
 )
 paletteLabel := widget.NewLabel("Color:")
-colorsKeys := []string{"R", "B", "Y", "P", "G", "M", "L", "H", "C", "K", "W"}
+colorsKeys := []string{"R", "B", "Y", "P", "G", "M", "L", "H", "C", "K", "W", "F", "N", "X"}
 palette := container.NewHBox()
 for _, k := range colorsKeys {
 key := k
@@ -572,6 +682,7 @@ colorMap := map[string]color.RGBA{
 "P": {200, 50, 255, 255}, "G": {50, 255, 50, 255}, "M": {255, 0, 255, 255},
 "L": {150, 255, 50, 255}, "H": {150, 0, 255, 255}, "C": {50, 255, 255, 255},
 "K": {10, 10, 10, 255}, "W": {200, 200, 200, 255},
+"F": {0, 150, 200, 255}, "N": {255, 120, 0, 255}, "X": {220, 20, 60, 255},
 }
 for r := 0; r <= engineMaxR; r++ {
 maxI := 8 * r
@@ -649,7 +760,7 @@ delete(engineGrid, target)
 delete(engineInfra, target)
 } else {
 engineGrid[target] = selectedColor
-if selectedColor == "P" || selectedColor == "C" || selectedColor == "K" || selectedColor == "R" || selectedColor == "B" || selectedColor == "Y" || selectedColor == "O" || selectedColor == "Br" || selectedColor == "M" || selectedColor == "L" || selectedColor == "H" {
+if selectedColor == "P" || selectedColor == "C" || selectedColor == "K" || selectedColor == "R" || selectedColor == "B" || selectedColor == "Y" || selectedColor == "O" || selectedColor == "Br" || selectedColor == "M" || selectedColor == "L" || selectedColor == "H" || selectedColor == "F" || selectedColor == "N" || selectedColor == "X" {
 engineInfra[target] = selectedColor
 }
 }

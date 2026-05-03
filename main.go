@@ -427,12 +427,14 @@ isRunning = false
 logArea.SetText(logArea.Text + "\n[!] PROGRAM HALTED.")
 }
 }
+var raster *clickableRaster
 toolbar := container.NewHBox(
 widget.NewButton("New", func() {
 isUserTyping = false
 editor.SetText("META_RADIUS: 6\n")
 isUserTyping = true
 parseSource(editor.Text)
+raster.Refresh()
 logArea.SetText("=== ODL Console ===\nNew project created.")
 }),
 widget.NewButton("Open", func() { logArea.SetText(logArea.Text + "\n[Open] Coming soon...") }),
@@ -467,6 +469,7 @@ logArea.SetText(logArea.Text + "\n[Run] Engine started.")
 widget.NewButton("Step", func() {
 isRunning = false
 engineStep()
+raster.Refresh()
 logArea.SetText(logArea.Text + "\n[Step] Advanced 1 tick.")
 }),
 widget.NewButton("Pause", func() {
@@ -476,6 +479,7 @@ logArea.SetText(logArea.Text + "\n[Pause] Execution paused.")
 widget.NewButton("⏹ Reset", func() {
 isRunning = false
 parseSource(editor.Text)
+raster.Refresh()
 logArea.SetText("=== ODL Console ===\nReset to initial state.")
 }),
 )
@@ -494,7 +498,6 @@ radiusSlider.OnChanged = func(v float64) {
 currentRadius = int(v)
 radiusLabel.SetText(fmt.Sprintf("Radius: %d", currentRadius))
 }
-var raster *clickableRaster
 drawFunc := func(w, h int) image.Image {
 mu.Lock()
 defer mu.Unlock()
@@ -570,16 +573,22 @@ for c, s := range engineGrid { newLines = append(newLines, fmt.Sprintf("R%d,%d: 
 mu.Unlock()
 isUserTyping = false
 editor.SetText(strings.Join(newLines, "\n"))
+raster.Refresh()
 isUserTyping = true
 }
 raster = newClickableRaster(drawFunc, tapFunc)
 editor.OnChanged = func(s string) {
-if isUserTyping && !isRunning { parseSource(s) }
+if isUserTyping && !isRunning {
+parseSource(s)
+raster.Refresh()
+}
 }
 go func() {
 for {
-if isRunning { engineStep() }
+if isRunning {
+engineStep()
 raster.Refresh()
+}
 time.Sleep(100 * time.Millisecond)
 }
 }()

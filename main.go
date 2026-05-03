@@ -1,9 +1,11 @@
 package main
 import (
+"bytes"
 "fmt"
 "image"
 "image/color"
 "math"
+"os"
 "strconv"
 "strings"
 "sync"
@@ -147,6 +149,118 @@ if s == "Br" { return "Br" }
 }
 return states[0]
 }
+func runODL(data string) {
+grid := make(map[Cell]string)
+infra := make(map[Cell]string)
+maxR := 0
+for _, line := range strings.Split(data, "\n") {
+line = strings.TrimSpace(line)
+if strings.HasPrefix(line, "META_RADIUS:") {
+parts := strings.Split(line, ":")
+if len(parts) >= 2 { maxR, _ = strconv.Atoi(strings.TrimSpace(parts[1])) }
+continue
+}
+if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "META") { continue }
+if strings.HasPrefix(line, "R") {
+p := strings.Split(line, ":")
+if len(p) < 2 { continue }
+c := strings.Split(p[0][1:], ",")
+if len(c) < 2 { continue }
+r, _ := strconv.Atoi(c[0])
+i, _ := strconv.Atoi(c[1])
+if r > maxR { maxR = r }
+s := strings.TrimSpace(p[1])
+grid[Cell{r, i}] = s
+if s == "P" || s == "C" || s == "K" || s == "R" || s == "B" || s == "Y" || s == "O" || s == "Br" || s == "M" || s == "L" || s == "H" {
+infra[Cell{r, i}] = s
+}
+}
+}
+outBuf := ""
+for step := 1; step <= 500; step++ {
+nextBuf := make(map[Cell][]string)
+for c, s := range grid {
+if len(s) == 2 {
+dx, dy := GetDir(s)
+if dx != 0 || dy != 0 {
+var best Cell
+maxDot := -999.0
+cx, cy := c.XY()
+for _, n := range Neighbors(c, maxR+1) {
+targetInfra := infra[n]
+if targetInfra == "P" || targetInfra == "K" || targetInfra == "C" || targetInfra == "O" || targetInfra == "Br" || targetInfra == "Y" { continue }
+nx, ny := n.XY()
+vx, vy := nx-cx, ny-cy
+norm := math.Sqrt(vx*vx + vy*vy)
+if norm > 0 { vx /= norm; vy /= norm }
+dot := vx*dx + vy*dy
+if dot > maxDot { maxDot = dot; best = n }
+}
+if maxDot > -999.0 {
+nextBuf[best] = append(nextBuf[best], s)
+} else {
+nextBuf[c] = append(nextBuf[c], s)
+}
+}
+}
+}
+for c, s := range infra {
+nextBuf[c] = append(nextBuf[c], s)
+}
+for c, states := range nextBuf {
+for i, s := range states {
+if len(s) == 2 { states[i] = Field(c, infra, s, maxR+1) }
+}
+}
+halt := false
+for c, states := range nextBuf {
+infraType := infra[c]
+if infraType == "M" {
+for _, s := range states {
+if len(s) == 2 {
+if s[0] == 'R' { outBuf += "1" } else if s[0] == 'B' { outBuf += "0" } else if s[0] == 'G' {
+if outBuf != "" {
+val, _ := strconv.ParseInt(outBuf, 2, 64)
+fmt.Printf("SYSTEM OUTPUT: %c\n", val)
+outBuf = ""
+}
+}
+}
+}
+nextBuf[c] = []string{"M"}
+} else if infraType == "H" {
+for _, s := range states {
+if len(s) == 2 { halt = true }
+}
+nextBuf[c] = []string{"H"}
+}
+}
+grid = make(map[Cell]string)
+for c, states := range nextBuf { grid[c] = Resolve(states) }
+if step%4 == 0 {
+for c, s := range infra {
+if s == "C" {
+var bestN Cell
+maxY := -999.0
+found := false
+for _, n := range Neighbors(c, maxR+1) {
+if infra[n] == "" || infra[n] == "R" || infra[n] == "B" || infra[n] == "Y" {
+_, ny := n.XY()
+if ny > maxY { maxY = ny; bestN = n; found = true }
+}
+}
+if found {
+if infra[bestN] == "R" { grid[bestN] = "RU" } else if infra[bestN] == "B" { grid[bestN] = "BU" } else { grid[bestN] = "GU" }
+}
+}
+}
+}
+if halt {
+fmt.Println("PROGRAM HALTED.")
+break
+}
+}
+}
 var (
 selectedColor = "R"
 currentRadius = 6
@@ -157,24 +271,19 @@ engineGrid map[Cell]string
 engineInfra map[Cell]string
 engineMaxR int
 stepCount int
-outBuf string
+outBufUI string
 )
 type clickableRaster struct {
 widget.BaseWidget
 raster *canvas.Raster
 onTap func(fyne.Position)
 }
-func (r *clickableRaster) CreateRenderer() fyne.WidgetRenderer {
-return widget.NewSimpleRenderer(r.raster)
-}
+func (r *clickableRaster) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(r.raster) }
 func (r *clickableRaster) Tapped(e *fyne.PointEvent) {
 if r.onTap != nil { r.onTap(e.Position) }
 }
 func newClickableRaster(draw func(w, h int) image.Image, tap func(fyne.Position)) *clickableRaster {
-r := &clickableRaster{
-raster: canvas.NewRaster(draw),
-onTap: tap,
-}
+r := &clickableRaster{ raster: canvas.NewRaster(draw), onTap: tap }
 r.ExtendBaseWidget(r)
 return r
 }
@@ -208,9 +317,24 @@ engineInfra[Cell{r, i}] = s
 }
 currentRadius = engineMaxR
 stepCount = 0
-outBuf = ""
+outBufUI = ""
 }
 func main() {
+part1 := []byte("!!!ODL_PACKER")
+part2 := []byte("_BOUNDARY!!!")
+magic := append(part1, part2...)
+exePath, err := os.Executable()
+if err == nil {
+exeData, err := os.ReadFile(exePath)
+if err == nil {
+idx := bytes.LastIndex(exeData, magic)
+if idx != -1 {
+sourceData := string(exeData[idx+len(magic):])
+runODL(sourceData)
+return
+}
+}
+}
 a := app.New()
 w := a.NewWindow("ODL Studio v3.1 - Visual IDE")
 w.Resize(fyne.NewSize(1400, 900))
@@ -249,9 +373,7 @@ nextBuf[c] = append(nextBuf[c], s)
 }
 }
 }
-for c, s := range engineInfra {
-nextBuf[c] = append(nextBuf[c], s)
-}
+for c, s := range engineInfra { nextBuf[c] = append(nextBuf[c], s) }
 for c, states := range nextBuf {
 for i, s := range states {
 if len(s) == 2 { states[i] = Field(c, engineInfra, s, engineMaxR+1) }
@@ -263,11 +385,11 @@ infraType := engineInfra[c]
 if infraType == "M" {
 for _, s := range states {
 if len(s) == 2 {
-if s[0] == 'R' { outBuf += "1" } else if s[0] == 'B' { outBuf += "0" } else if s[0] == 'G' {
-if outBuf != "" {
-val, _ := strconv.ParseInt(outBuf, 2, 64)
+if s[0] == 'R' { outBufUI += "1" } else if s[0] == 'B' { outBufUI += "0" } else if s[0] == 'G' {
+if outBufUI != "" {
+val, _ := strconv.ParseInt(outBufUI, 2, 64)
 logArea.SetText(logArea.Text + fmt.Sprintf("\nSYSTEM OUTPUT: %c", val))
-outBuf = ""
+outBufUI = ""
 }
 }
 }
@@ -281,9 +403,7 @@ nextBuf[c] = []string{"H"}
 }
 }
 engineGrid = make(map[Cell]string)
-for c, states := range nextBuf {
-engineGrid[c] = Resolve(states)
-}
+for c, states := range nextBuf { engineGrid[c] = Resolve(states) }
 if stepCount%4 == 0 {
 for c, s := range engineInfra {
 if s == "C" {
@@ -315,11 +435,26 @@ isUserTyping = true
 parseSource(editor.Text)
 logArea.SetText("=== ODL Console ===\nNew project created.")
 }),
-widget.NewButton("Open", func() {
-logArea.SetText(logArea.Text + "\n[Open] Coming soon...")
-}),
-widget.NewButton("Save", func() {
-logArea.SetText(logArea.Text + "\n[Save] Coming soon...")
+widget.NewButton("Open", func() { logArea.SetText(logArea.Text + "\n[Open] Coming soon...") }),
+widget.NewButton("Export EXE", func() {
+exePath, err := os.Executable()
+if err != nil {
+logArea.SetText(logArea.Text + "\n[Export] Error locating executable.")
+return
+}
+exeData, err := os.ReadFile(exePath)
+if err != nil {
+logArea.SetText(logArea.Text + "\n[Export] Error reading executable.")
+return
+}
+outData := append(exeData, magic...)
+outData = append(outData, []byte(editor.Text)...)
+err = os.WriteFile("exported_program.exe", outData, 0755)
+if err != nil {
+logArea.SetText(logArea.Text + "\n[Export] Error writing file.")
+return
+}
+logArea.SetText(logArea.Text + "\n[Export] Successfully packed to -> exported_program.exe")
 }),
 widget.NewSeparator(),
 widget.NewButton("▶ Run", func() {

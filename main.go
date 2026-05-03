@@ -199,7 +199,6 @@ outBuf := ""
 bufF := ""
 bufN := ""
 bufX := ""
-step := 1
 for {
 nextBuf := make(map[Cell][]string)
 for c, s := range grid {
@@ -325,8 +324,12 @@ if halt {
 fmt.Println("PROGRAM HALTED.")
 break
 }
-step++
 }
+}
+type PCellData struct {
+R int
+X float64
+Y float64
 }
 var (
 selectedColor = "R"
@@ -686,6 +689,13 @@ colorMap := map[string]color.RGBA{
 "K": {10, 10, 10, 255}, "W": {200, 200, 200, 255},
 "F": {0, 150, 200, 255}, "N": {255, 120, 0, 255}, "X": {220, 20, 60, 255},
 }
+var pData []PCellData
+for c, s := range engineInfra {
+if s == "P" {
+px, py := c.XY()
+pData = append(pData, PCellData{R: c.R, X: px, Y: py})
+}
+}
 for r := 0; r <= engineMaxR; r++ {
 maxI := 8 * r
 if r == 0 { maxI = 1 }
@@ -698,18 +708,13 @@ s := engineGrid[c]
 if s == "" {
 pxVec, pyVec := 0.0, 0.0
 foundP := false
-for r2 := c.R - 2; r2 <= c.R+2; r2++ {
-if r2 < 0 || r2 > engineMaxR { continue }
-maxI2 := 8 * r2; if r2 == 0 { maxI2 = 1 }
-for i2 := 0; i2 < maxI2; i2++ {
-if engineInfra[Cell{r2, i2}] == "P" {
-nx, ny := Cell{r2, i2}.XY()
-vx, vy := nx-cx, ny-cy
-d := math.Sqrt(vx*vx + vy*vy)
-if d > 0 && d < 2.5 {
+for _, pd := range pData {
+if c.R < pd.R-2 || c.R > pd.R+2 { continue }
+vx, vy := pd.X-cx, pd.Y-cy
+distSq := vx*vx + vy*vy
+if distSq > 0 && distSq < 6.25 {
+d := math.Sqrt(distSq)
 pxVec += vx / d; pyVec += vy / d; foundP = true
-}
-}
 }
 }
 for dy := -dotSize; dy <= dotSize; dy++ {

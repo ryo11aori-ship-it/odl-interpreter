@@ -116,7 +116,7 @@ if len(states) == 0 {
 return ""
 }
 var dir string
-hasR, hasB, hasY, hasP := false
+hasR, hasB, hasY, hasP := false, false, false, false
 hasCarrier := false
 for _, s := range states {
 if s == "R" {

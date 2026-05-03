@@ -1,4 +1,4 @@
-name: Build ODL Studio
+name: ODL Universal Compiler Workflow
 on: [push]
 jobs:
   build:
@@ -8,25 +8,18 @@ jobs:
     - uses: actions/setup-go@v5
       with:
         go-version: '1.22'
-    - name: Install  Compiler
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y gcc-mingw-w64
-    - name: Init Module
-      run: go mod init odl || true
-    - name: Install Fyne UI
-      run: |
-        go get fyne.io/fyne/v2
-        go mod tidy
-    - name: Build EXE for Windows
+    
+    - name: Build the ODL Compiler (odlc)
+      run: go build -o odlc compiler.go
+
+    - name: Compile ODL Source to EXE
       env:
-        CGO_ENABLED: 1
-        CC: x86_64-w64-mingw32-gcc
         GOOS: windows
         GOARCH: amd64
-      run: go build -ldflags="-H windowsgui" -o ODL_Studio.exe main.go
-    - name: Upload EXE
+      run: ./odlc test.odl test_program.exe
+
+    - name: Upload EXE Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ODL_Studio_App
-        path: ODL_Studio.exe
+        name: Compiled_ODL_Program
+        path: test_program.exe

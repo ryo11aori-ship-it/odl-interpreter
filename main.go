@@ -1,17 +1,16 @@
 package main
 import (
 "bytes"
+"encoding/binary"
 "fmt"
 "image"
 "image/color"
 "io"
 "math"
 "os"
-"runtime"
 "strconv"
 "strings"
 "sync"
-"syscall"
 "time"
 "fyne.io/fyne/v2"
 "fyne.io/fyne/v2/app"
@@ -154,32 +153,7 @@ if s == "Br" { return "Br" }
 }
 return states[0]
 }
-func enableConsole() bool {
-if runtime.GOOS == "windows" {
-modkernel32 := syscall.NewLazyDLL("kernel32.dll")
-procAttachConsole := modkernel32.NewProc("AttachConsole")
-procAllocConsole := modkernel32.NewProc("AllocConsole")
-isAlloc := false
-r1, _, _ := procAttachConsole.Call(uintptr(0xFFFFFFFF))
-if r1 == 0 {
-procAllocConsole.Call()
-isAlloc = true
-}
-out, err := os.OpenFile("CONOUT$", os.O_RDWR, 0644)
-if err == nil {
-os.Stdout = out
-os.Stderr = out
-}
-in, err := os.OpenFile("CONIN$", os.O_RDWR, 0644)
-if err == nil {
-os.Stdin = in
-}
-return isAlloc
-}
-return false
-}
 func runODL(data string) {
-isAlloc := enableConsole()
 grid := make(map[Cell]string)
 infra := make(map[Cell]string)
 maxR := 0
@@ -289,10 +263,6 @@ if halt {
 fmt.Println("PROGRAM HALTED.")
 break
 }
-}
-if isAlloc {
-fmt.Println("\nPress Enter to exit...")
-fmt.Scanln()
 }
 }
 var (
@@ -523,6 +493,13 @@ exeData, err := os.ReadFile(exePath)
 if err != nil {
 logArea.SetText(logArea.Text + "\n[Export] Error reading executable.")
 return
+}
+if len(exeData) > 0x40 {
+e_lfanew := binary.LittleEndian.Uint32(exeData[0x3C:0x40])
+subsystemOffset := e_lfanew + 92
+if subsystemOffset < uint32(len(exeData)) {
+exeData[subsystemOffset] = 3
+}
 }
 magicStr := strings.Join([]string{"!!!ODL", "PACKER", "BOUNDARY!!!"}, "_")
 magic := []byte(magicStr)

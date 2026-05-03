@@ -199,7 +199,8 @@ outBuf := ""
 bufF := ""
 bufN := ""
 bufX := ""
-for step := 1; step <= 500; step++ {
+step := 1
+for {
 nextBuf := make(map[Cell][]string)
 for c, s := range grid {
 if len(s) == 2 {
@@ -324,6 +325,7 @@ if halt {
 fmt.Println("PROGRAM HALTED.")
 break
 }
+step++
 }
 }
 var (

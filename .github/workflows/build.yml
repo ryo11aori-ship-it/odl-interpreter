@@ -24,7 +24,7 @@ jobs:
         CC: x86_64-w64-mingw32-gcc
         GOOS: windows
         GOARCH: amd64
-      run: go build -o ODL_Studio.exe main.go
+      run: go build -ldflags="-H windowsgui" -o ODL_Studio.exe main.go
 
     - name: Upload IDE App
       uses: actions/upload-artifact@v4

@@ -6,6 +6,8 @@ import (
 "math"
 "strconv"
 "strings"
+"sync"
+"time"
 "fyne.io/fyne/v2"
 "fyne.io/fyne/v2/app"
 "fyne.io/fyne/v2/canvas"
@@ -21,9 +23,142 @@ if c.R == 0 { return 0, 0 }
 ang := 2.0 * math.Pi * float64(c.I) / float64(8*c.R)
 return float64(c.R)*math.Cos(ang), float64(c.R)*math.Sin(ang)
 }
-var selectedColor = "R"
-var currentRadius = 6
-var isRunning = false
+func Dist(c1, c2 Cell) float64 {
+x1, y1 := c1.XY()
+x2, y2 := c2.XY()
+return math.Sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2))
+}
+func Neighbors(c Cell, maxR int) []Cell {
+var res []Cell
+for r := c.R - 1; r <= c.R+1; r++ {
+if r < 0 || r > maxR { continue }
+maxI := 8 * r
+if r == 0 { maxI = 1 }
+for i := 0; i < maxI; i++ {
+nc := Cell{r, i}
+if nc != c && Dist(c, nc) < 1.5 { res = append(res, nc) }
+}
+}
+return res
+}
+func GetDir(state string) (float64, float64) {
+if len(state) == 2 {
+if state[1] == 'U' { return 0, 1 }
+if state[1] == 'D' { return 0, -1 }
+if state[1] == 'L' { return -1, 0 }
+if state[1] == 'R' { return 1, 0 }
+}
+return 0, 0
+}
+func Field(c Cell, infra map[Cell]string, s string, maxR int) string {
+cx, cy := c.XY()
+dx, dy := GetDir(s)
+px, py := 0.0, 0.0
+found := false
+for r := c.R - 2; r <= c.R+2; r++ {
+if r < 0 || r > maxR { continue }
+maxI := 8 * r
+if r == 0 { maxI = 1 }
+for i := 0; i < maxI; i++ {
+nc := Cell{r, i}
+if infra[nc] == "P" {
+nx, ny := nc.XY()
+vx, vy := nx-cx, ny-cy
+if vx*dx+vy*dy >= -0.1 {
+d := math.Sqrt(vx*vx + vy*vy)
+if d > 0 && d < 2.5 {
+px += vx / d
+py += vy / d
+found = true
+}
+}
+}
+}
+}
+if !found { return s }
+base := string(s[0])
+dirs := []string{base + "U", base + "D", base + "L", base + "R"}
+dxs := []float64{0, 0, -1, 1}
+dys := []float64{1, -1, 0, 0}
+md := -999.0
+best := s
+for j := 0; j < 4; j++ {
+dot := px*dxs[j] + py*dys[j]
+if dot > md { md = dot; best = dirs[j] }
+}
+return best
+}
+func Resolve(states []string) string {
+if len(states) == 0 { return "" }
+var dir string
+hasR, hasB, hasY, hasP := false, false, false, false
+hasCarrier := false
+for _, s := range states {
+if s == "R" { hasR = true }
+if s == "B" { hasB = true }
+if s == "Y" { hasY = true }
+if s == "P" { hasP = true }
+if len(s) == 2 {
+hasCarrier = true
+dir = string(s[1])
+if s[0] == 'R' { hasR = true }
+if s[0] == 'B' { hasB = true }
+}
+}
+if hasP { return "P" }
+if hasR && hasB && !hasY { return "Y" }
+if hasR && hasB && hasY {
+if hasCarrier { return "R" + dir }
+return "R"
+}
+if hasR && hasY {
+if hasCarrier { return "B" + dir }
+return "B"
+}
+if hasB && hasY {
+if hasCarrier { return "R" + dir }
+return "R"
+}
+if hasY && hasCarrier { return "G" + dir }
+if hasY { return "Y" }
+for _, s := range states {
+if s == "O" { return "O" }
+}
+for _, s := range states {
+if s == "M" { return "M" }
+if s == "L" { return "L" }
+if s == "H" { return "H" }
+}
+if hasCarrier {
+if hasR { return "R" + dir }
+if hasB { return "B" + dir }
+return "G" + dir
+}
+if hasR { return "R" }
+if hasB { return "B" }
+for _, s := range states {
+if s == "C" { return "C" }
+}
+for _, s := range states {
+if s == "K" { return "K" }
+}
+for _, s := range states {
+if s == "Br" { return "Br" }
+}
+return states[0]
+}
+var (
+selectedColor = "R"
+currentRadius = 6
+isRunning = false
+isUserTyping = true
+mu sync.Mutex
+engineGrid map[Cell]string
+engineInfra map[Cell]string
+engineMaxR int
+stepCount int
+outBuf string
+)
 type clickableRaster struct {
 widget.BaseWidget
 raster *canvas.Raster
@@ -43,14 +178,17 @@ onTap: tap,
 r.ExtendBaseWidget(r)
 return r
 }
-func parseSource(source string) (map[Cell]string, int) {
-grid := make(map[Cell]string)
-maxR := 0
+func parseSource(source string) {
+mu.Lock()
+defer mu.Unlock()
+engineGrid = make(map[Cell]string)
+engineInfra = make(map[Cell]string)
+engineMaxR = 6
 for _, line := range strings.Split(source, "\n") {
 line = strings.TrimSpace(line)
 if strings.HasPrefix(line, "META_RADIUS:") {
 p := strings.Split(line, ":")
-if len(p) >= 2 { maxR, _ = strconv.Atoi(strings.TrimSpace(p[1])) }
+if len(p) >= 2 { engineMaxR, _ = strconv.Atoi(strings.TrimSpace(p[1])) }
 continue
 }
 if strings.HasPrefix(line, "R") {
@@ -60,10 +198,17 @@ c := strings.Split(p[0][1:], ",")
 if len(c) < 2 { continue }
 r, _ := strconv.Atoi(c[0])
 i, _ := strconv.Atoi(c[1])
-grid[Cell{r, i}] = strings.TrimSpace(p[1])
+if r > engineMaxR { engineMaxR = r }
+s := strings.TrimSpace(p[1])
+engineGrid[Cell{r, i}] = s
+if s == "P" || s == "C" || s == "K" || s == "R" || s == "B" || s == "Y" || s == "O" || s == "Br" || s == "M" || s == "L" || s == "H" {
+engineInfra[Cell{r, i}] = s
 }
 }
-return grid, maxR
+}
+currentRadius = engineMaxR
+stepCount = 0
+outBuf = ""
 }
 func main() {
 a := app.New()
@@ -72,12 +217,102 @@ w.Resize(fyne.NewSize(1400, 900))
 editor := widget.NewMultiLineEntry()
 editor.SetText("META_RADIUS: 6\nR1,0: RU\nR3,6: M\nR5,0: H")
 logArea := widget.NewMultiLineEntry()
-logArea.Disable()
 logArea.SetText("=== ODL Console ===\nReady.")
+parseSource(editor.Text)
+engineStep := func() {
+mu.Lock()
+defer mu.Unlock()
+stepCount++
+nextBuf := make(map[Cell][]string)
+for c, s := range engineGrid {
+if len(s) == 2 {
+dx, dy := GetDir(s)
+if dx != 0 || dy != 0 {
+var best Cell
+maxDot := -999.0
+cx, cy := c.XY()
+for _, n := range Neighbors(c, engineMaxR+1) {
+targetInfra := engineInfra[n]
+if targetInfra == "P" || targetInfra == "K" || targetInfra == "C" || targetInfra == "O" || targetInfra == "Br" || targetInfra == "Y" { continue }
+nx, ny := n.XY()
+vx, vy := nx-cx, ny-cy
+norm := math.Sqrt(vx*vx + vy*vy)
+if norm > 0 { vx /= norm; vy /= norm }
+dot := vx*dx + vy*dy
+if dot > maxDot { maxDot = dot; best = n }
+}
+if maxDot > -999.0 {
+nextBuf[best] = append(nextBuf[best], s)
+} else {
+nextBuf[c] = append(nextBuf[c], s)
+}
+}
+}
+}
+for c, s := range engineInfra {
+nextBuf[c] = append(nextBuf[c], s)
+}
+for c, states := range nextBuf {
+for i, s := range states {
+if len(s) == 2 { states[i] = Field(c, engineInfra, s, engineMaxR+1) }
+}
+}
+halt := false
+for c, states := range nextBuf {
+infraType := engineInfra[c]
+if infraType == "M" {
+for _, s := range states {
+if len(s) == 2 {
+if s[0] == 'R' { outBuf += "1" } else if s[0] == 'B' { outBuf += "0" } else if s[0] == 'G' {
+if outBuf != "" {
+val, _ := strconv.ParseInt(outBuf, 2, 64)
+logArea.SetText(logArea.Text + fmt.Sprintf("\nSYSTEM OUTPUT: %c", val))
+outBuf = ""
+}
+}
+}
+}
+nextBuf[c] = []string{"M"}
+} else if infraType == "H" {
+for _, s := range states {
+if len(s) == 2 { halt = true }
+}
+nextBuf[c] = []string{"H"}
+}
+}
+engineGrid = make(map[Cell]string)
+for c, states := range nextBuf {
+engineGrid[c] = Resolve(states)
+}
+if stepCount%4 == 0 {
+for c, s := range engineInfra {
+if s == "C" {
+var bestN Cell
+maxY := -999.0
+found := false
+for _, n := range Neighbors(c, engineMaxR+1) {
+if engineInfra[n] == "" || engineInfra[n] == "R" || engineInfra[n] == "B" || engineInfra[n] == "Y" {
+_, ny := n.XY()
+if ny > maxY { maxY = ny; bestN = n; found = true }
+}
+}
+if found {
+if engineInfra[bestN] == "R" { engineGrid[bestN] = "RU" } else if engineInfra[bestN] == "B" { engineGrid[bestN] = "BU" } else { engineGrid[bestN] = "GU" }
+}
+}
+}
+}
+if halt {
+isRunning = false
+logArea.SetText(logArea.Text + "\n[!] PROGRAM HALTED.")
+}
+}
 toolbar := container.NewHBox(
 widget.NewButton("New", func() {
+isUserTyping = false
 editor.SetText("META_RADIUS: 6\n")
-currentRadius = 6
+isUserTyping = true
+parseSource(editor.Text)
 logArea.SetText("=== ODL Console ===\nNew project created.")
 }),
 widget.NewButton("Open", func() {
@@ -88,11 +323,16 @@ logArea.SetText(logArea.Text + "\n[Save] Coming soon...")
 }),
 widget.NewSeparator(),
 widget.NewButton("▶ Run", func() {
+if !isRunning {
+parseSource(editor.Text)
 isRunning = true
-logArea.SetText(logArea.Text + "\n[Run] Engine not wired yet.")
+logArea.SetText(logArea.Text + "\n[Run] Engine started.")
+}
 }),
 widget.NewButton("Step", func() {
-logArea.SetText(logArea.Text + "\n[Step] Engine not wired yet.")
+isRunning = false
+engineStep()
+logArea.SetText(logArea.Text + "\n[Step] Advanced 1 tick.")
 }),
 widget.NewButton("Pause", func() {
 isRunning = false
@@ -100,7 +340,8 @@ logArea.SetText(logArea.Text + "\n[Pause] Execution paused.")
 }),
 widget.NewButton("⏹ Reset", func() {
 isRunning = false
-logArea.SetText("=== ODL Console ===\nReset.")
+parseSource(editor.Text)
+logArea.SetText("=== ODL Console ===\nReset to initial state.")
 }),
 )
 paletteLabel := widget.NewLabel("Color:")
@@ -117,23 +358,17 @@ radiusLabel := widget.NewLabel("Radius: 6")
 radiusSlider.OnChanged = func(v float64) {
 currentRadius = int(v)
 radiusLabel.SetText(fmt.Sprintf("Radius: %d", currentRadius))
-lines := strings.Split(editor.Text, "\n")
-newLines := []string{fmt.Sprintf("META_RADIUS: %d", currentRadius)}
-for _, l := range lines {
-if !strings.HasPrefix(l, "META_RADIUS:") { newLines = append(newLines, l) }
-}
-editor.SetText(strings.Join(newLines, "\n"))
 }
 var raster *clickableRaster
 drawFunc := func(w, h int) image.Image {
+mu.Lock()
+defer mu.Unlock()
 img := image.NewRGBA(image.Rect(0, 0, w, h))
 for y := 0; y < h; y++ {
 for x := 0; x < w; x++ { img.Set(x, y, color.RGBA{20, 20, 25, 255}) }
 }
-grid, maxR := parseSource(editor.Text)
-currentRadius = maxR
 halfX, halfY := float64(w)/2.0, float64(h)/2.0
-scale := (float64(w) * 0.45) / float64(maxR+1)
+scale := (float64(w) * 0.45) / float64(engineMaxR+1)
 if scale > 30 { scale = 30 }
 dotSize := int(scale * 0.4)
 if dotSize < 1 { dotSize = 1 }
@@ -143,7 +378,7 @@ colorMap := map[string]color.RGBA{
 "L": {150, 255, 50, 255}, "H": {150, 0, 255, 255}, "C": {50, 255, 255, 255},
 "K": {10, 10, 10, 255}, "W": {200, 200, 200, 255},
 }
-for r := 0; r <= maxR; r++ {
+for r := 0; r <= engineMaxR; r++ {
 maxI := 8 * r
 if r == 0 { maxI = 1 }
 for i := 0; i < maxI; i++ {
@@ -157,7 +392,7 @@ img.Set(px+dx, py+dy, color.RGBA{50, 50, 60, 255})
 }
 }
 }
-s := grid[c]
+s := engineGrid[c]
 if s != "" {
 col := colorMap[string(s[0])]
 for dy := -dotSize; dy <= dotSize; dy++ {
@@ -171,28 +406,48 @@ if dx*dx+dy*dy <= dotSize*dotSize { img.Set(px+dx, py+dy, col) }
 return img
 }
 tapFunc := func(pos fyne.Position) {
-grid, maxR := parseSource(editor.Text)
+mu.Lock()
 wSize := raster.Size()
 halfX, halfY := float64(wSize.Width)/2.0, float64(wSize.Height)/2.0
-scale := (float64(wSize.Width) * 0.45) / float64(maxR+1)
+scale := (float64(wSize.Width) * 0.45) / float64(engineMaxR+1)
 if scale > 30 { scale = 30 }
 dx, dy := float64(pos.X)-halfX, halfY-float64(pos.Y)
 dist := math.Sqrt(dx*dx + dy*dy)
 r := int(math.Round(dist / scale))
-if r > maxR { return }
+if r > engineMaxR { mu.Unlock(); return }
 ang := math.Atan2(dy, dx)
 if ang < 0 { ang += 2 * math.Pi }
 i := int(math.Round(ang * float64(8*r) / (2 * math.Pi)))
 if r == 0 { i = 0 } else { i = i % (8 * r) }
 target := Cell{r, i}
-if selectedColor == "W" { delete(grid, target) } else { grid[target] = selectedColor }
+if selectedColor == "W" {
+delete(engineGrid, target)
+delete(engineInfra, target)
+} else {
+engineGrid[target] = selectedColor
+if selectedColor == "P" || selectedColor == "C" || selectedColor == "K" || selectedColor == "R" || selectedColor == "B" || selectedColor == "Y" || selectedColor == "O" || selectedColor == "Br" || selectedColor == "M" || selectedColor == "L" || selectedColor == "H" {
+engineInfra[target] = selectedColor
+}
+}
 var newLines []string
-newLines = append(newLines, fmt.Sprintf("META_RADIUS: %d", maxR))
-for c, s := range grid { newLines = append(newLines, fmt.Sprintf("R%d,%d: %s", c.R, c.I, s)) }
+newLines = append(newLines, fmt.Sprintf("META_RADIUS: %d", engineMaxR))
+for c, s := range engineGrid { newLines = append(newLines, fmt.Sprintf("R%d,%d: %s", c.R, c.I, s)) }
+mu.Unlock()
+isUserTyping = false
 editor.SetText(strings.Join(newLines, "\n"))
+isUserTyping = true
 }
 raster = newClickableRaster(drawFunc, tapFunc)
-editor.OnChanged = func(s string) { raster.Refresh() }
+editor.OnChanged = func(s string) {
+if isUserTyping && !isRunning { parseSource(s) }
+}
+go func() {
+for {
+if isRunning { engineStep() }
+raster.Refresh()
+time.Sleep(100 * time.Millisecond)
+}
+}()
 topControls := container.NewVBox(toolbar, container.NewHBox(radiusLabel, radiusSlider), container.NewHBox(paletteLabel, palette))
 leftPanel := container.NewVSplit(editor, logArea)
 mainContent := container.NewHSplit(leftPanel, raster)

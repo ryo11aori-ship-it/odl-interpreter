@@ -1,12 +1,10 @@
 package main
-
 import (
 "fmt"
 "os"
 "os/exec"
 "strings"
 )
-
 func main() {
 if len(os.Args) < 2 {
 fmt.Println("Usage: odlc <source.odl> [output.exe]")
@@ -380,7 +378,7 @@ break
 }
 }
 `
-tempFile := "_odl_temp_build.go"
+tempFile := "odl_temp_build.go"
 err = os.WriteFile(tempFile, []byte(sourceCode), 0644)
 if err != nil {
 fmt.Println("Temp File Error:", err)

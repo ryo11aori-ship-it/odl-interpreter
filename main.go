@@ -40,11 +40,31 @@ func Neighbors(c Cell, maxR int) []Cell {
 var res []Cell
 for r := c.R - 1; r <= c.R+1; r++ {
 if r < 0 || r > maxR { continue }
+if r == 0 {
+if c.R <= 1 {
+nc := Cell{0, 0}
+if nc != c && Dist(c, nc) < 1.5 { res = append(res, nc) }
+}
+continue
+}
 maxI := 8 * r
-if r == 0 { maxI = 1 }
+if c.R == 0 {
 for i := 0; i < maxI; i++ {
 nc := Cell{r, i}
 if nc != c && Dist(c, nc) < 1.5 { res = append(res, nc) }
+}
+} else {
+centerI := int(math.Round(float64(c.I) * float64(r) / float64(c.R)))
+for di := -8; di <= 8; di++ {
+i := (centerI + di) % maxI
+if i < 0 { i += maxI }
+nc := Cell{r, i}
+if nc != c && Dist(c, nc) < 1.5 {
+isDup := false
+for _, existing := range res { if existing == nc { isDup = true; break } }
+if !isDup { res = append(res, nc) }
+}
+}
 }
 }
 return res
@@ -65,8 +85,20 @@ px, py := 0.0, 0.0
 found := false
 for r := c.R - 2; r <= c.R+2; r++ {
 if r < 0 || r > maxR { continue }
+if r == 0 {
+nc := Cell{0, 0}
+if infra[nc] == "P" {
+nx, ny := nc.XY()
+vx, vy := nx-cx, ny-cy
+if vx*dx+vy*dy >= -0.1 {
+d := math.Sqrt(vx*vx + vy*vy)
+if d > 0 && d < 2.5 { px += vx / d; py += vy / d; found = true }
+}
+}
+continue
+}
 maxI := 8 * r
-if r == 0 { maxI = 1 }
+if c.R == 0 {
 for i := 0; i < maxI; i++ {
 nc := Cell{r, i}
 if infra[nc] == "P" {
@@ -74,10 +106,22 @@ nx, ny := nc.XY()
 vx, vy := nx-cx, ny-cy
 if vx*dx+vy*dy >= -0.1 {
 d := math.Sqrt(vx*vx + vy*vy)
-if d > 0 && d < 2.5 {
-px += vx / d
-py += vy / d
-found = true
+if d > 0 && d < 2.5 { px += vx / d; py += vy / d; found = true }
+}
+}
+}
+} else {
+centerI := int(math.Round(float64(c.I) * float64(r) / float64(c.R)))
+for di := -12; di <= 12; di++ {
+i := (centerI + di) % maxI
+if i < 0 { i += maxI }
+nc := Cell{r, i}
+if infra[nc] == "P" {
+nx, ny := nc.XY()
+vx, vy := nx-cx, ny-cy
+if vx*dx+vy*dy >= -0.1 {
+d := math.Sqrt(vx*vx + vy*vy)
+if d > 0 && d < 2.5 { px += vx / d; py += vy / d; found = true }
 }
 }
 }
@@ -330,11 +374,6 @@ break
 }
 step++
 }
-}
-type PCellData struct {
-R int
-X float64
-Y float64
 }
 var (
 selectedColor = "R"
@@ -698,13 +737,6 @@ colorMap := map[string]color.RGBA{
 "K": {10, 10, 10, 255}, "W": {200, 200, 200, 255},
 "F": {0, 150, 200, 255}, "N": {255, 120, 0, 255}, "X": {220, 20, 60, 255},
 }
-var pData []PCellData
-for c, s := range engineInfra {
-if s == "P" {
-px, py := c.XY()
-pData = append(pData, PCellData{R: c.R, X: px, Y: py})
-}
-}
 for r := 0; r <= engineMaxR; r++ {
 maxI := 8 * r
 if r == 0 { maxI = 1 }
@@ -717,13 +749,41 @@ s := engineGrid[c]
 if s == "" {
 pxVec, pyVec := 0.0, 0.0
 foundP := false
-for _, pd := range pData {
-if c.R < pd.R-2 || c.R > pd.R+2 { continue }
-vx, vy := pd.X-cx, pd.Y-cy
+for r2 := c.R - 2; r2 <= c.R+2; r2++ {
+if r2 < 0 || r2 > engineMaxR { continue }
+if r2 == 0 {
+if engineInfra[Cell{0, 0}] == "P" {
+nx, ny := 0.0, 0.0
+vx, vy := nx-cx, ny-cy
 distSq := vx*vx + vy*vy
-if distSq > 0 && distSq < 6.25 {
-d := math.Sqrt(distSq)
-pxVec += vx / d; pyVec += vy / d; foundP = true
+if distSq > 0 && distSq < 6.25 { d := math.Sqrt(distSq); pxVec += vx / d; pyVec += vy / d; foundP = true }
+}
+continue
+}
+maxI2 := 8 * r2
+if c.R == 0 {
+for i2 := 0; i2 < maxI2; i2++ {
+nc := Cell{r2, i2}
+if engineInfra[nc] == "P" {
+nx, ny := nc.XY()
+vx, vy := nx-cx, ny-cy
+distSq := vx*vx + vy*vy
+if distSq > 0 && distSq < 6.25 { d := math.Sqrt(distSq); pxVec += vx / d; pyVec += vy / d; foundP = true }
+}
+}
+} else {
+centerI := int(math.Round(float64(c.I) * float64(r2) / float64(c.R)))
+for di := -12; di <= 12; di++ {
+i2 := (centerI + di) % maxI2
+if i2 < 0 { i2 += maxI2 }
+nc := Cell{r2, i2}
+if engineInfra[nc] == "P" {
+nx, ny := nc.XY()
+vx, vy := nx-cx, ny-cy
+distSq := vx*vx + vy*vy
+if distSq > 0 && distSq < 6.25 { d := math.Sqrt(distSq); pxVec += vx / d; pyVec += vy / d; foundP = true }
+}
+}
 }
 }
 for dy := -dotSize; dy <= dotSize; dy++ {
